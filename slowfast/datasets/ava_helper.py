@@ -219,5 +219,7 @@ def parse_bboxes_file(ann_filenames, ann_is_gt_box, detect_thresh, boxes_sample_
             all_boxes[video_name][frame_sec] = list(
                 all_boxes[video_name][frame_sec].values()
             )
-
+    
+    print(len(all_boxes))
+    print(all_boxes)
     return all_boxes, count, unique_box_count
