@@ -125,7 +125,7 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
         if not cfg.VIS_MASK.ENABLE:
             # Update and log stats.
             test_meter.update_stats(preds.detach(), labels.detach(), video_idx.detach())
-        test_meter.log_iter_stats(cur_iter)
+        test_meter.log_iter_stats(None,cur_iter)
 
         test_meter.iter_tic()
 
