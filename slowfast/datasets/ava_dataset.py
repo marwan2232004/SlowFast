@@ -65,6 +65,7 @@ class Ava(torch.utils.data.Dataset):
         # Loading annotations for boxes and labels.
         boxes_and_labels = ava_helper.load_boxes_and_labels(cfg, mode=self._split)
 
+        
         assert len(boxes_and_labels) == len(self._image_paths)
 
         boxes_and_labels = [

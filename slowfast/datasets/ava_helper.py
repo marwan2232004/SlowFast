@@ -189,12 +189,10 @@ def parse_bboxes_file(ann_filenames, ann_is_gt_box, detect_thresh, boxes_sample_
                 if not is_gt_box:
                     score = float(row[7])
                     if score < detect_thresh:
-                        print("Low Score")
                         continue
 
                 video_name, frame_sec = row[0], int(row[1])
                 if frame_sec % boxes_sample_rate != 0:
-                    print("Mod error",frame_sec, boxes_sample_rate)
                     continue
 
                 # Box with format [x1, y1, x2, y2] with a range of [0, 1] as float.
@@ -222,7 +220,5 @@ def parse_bboxes_file(ann_filenames, ann_is_gt_box, detect_thresh, boxes_sample_
                 all_boxes[video_name][frame_sec].values()
             )
     
-    print(len(all_boxes))
-    print(ann_filenames)
-    print(all_boxes.keys())
+    
     return all_boxes, count, unique_box_count
