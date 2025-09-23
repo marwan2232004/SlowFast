@@ -203,8 +203,9 @@ def parse_bboxes_file(ann_filenames, ann_is_gt_box, detect_thresh, boxes_sample_
                 if video_name not in all_boxes:
                     all_boxes[video_name] = {}
                     for sec in AVA_VALID_FRAMES:
+                        print("range: ", sec)
                         all_boxes[video_name][sec] = {}
-
+                print("frame second:" , frame_sec)
                 if box_key not in all_boxes[video_name][frame_sec]:
                     all_boxes[video_name][frame_sec][box_key] = [box, []]
                     unique_box_count += 1
