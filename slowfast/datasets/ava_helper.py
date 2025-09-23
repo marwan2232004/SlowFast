@@ -39,6 +39,7 @@ def load_image_lists(cfg, is_train):
             f.readline()
             for line in f:
                 row = line.split()
+                print(row)
                 # The format of each row should follow:
                 # original_vido_id video_id frame_id path labels.
                 assert len(row) == 5
