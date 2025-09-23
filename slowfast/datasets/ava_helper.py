@@ -4,13 +4,13 @@
 import logging
 import os
 from collections import defaultdict
-
+import numpy as np
 from slowfast.utils.env import pathmgr
 
 logger = logging.getLogger(__name__)
 
 FPS = 30
-AVA_VALID_FRAMES = range(902, 1799)
+AVA_VALID_FRAMES = np.arange(900, 1799, 0.5)
 
 
 def load_image_lists(cfg, is_train):
@@ -39,7 +39,6 @@ def load_image_lists(cfg, is_train):
             f.readline()
             for line in f:
                 row = line.split()
-                print(row)
                 # The format of each row should follow:
                 # original_vido_id video_id frame_id path labels.
                 assert len(row) == 5
