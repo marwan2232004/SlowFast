@@ -84,7 +84,7 @@ def load_boxes_and_labels(cfg, mode):
         os.path.join(cfg.AVA.ANNOTATION_DIR, filename)
         for filename in gt_lists + pred_lists
     ]
-    print("all:",ann_filenames,"gt: ",cfg.AVA.TRAIN_GT_BOX_LISTS,"pred: ",pred_lists)
+    print("all:",ann_filenames,"gt: ",cfg.AVA.TRAIN_GT_BOX_LISTS, "mode:" , mode,"pred: ",pred_lists)
     ann_is_gt_box = [True] * len(gt_lists) + [False] * len(pred_lists)
 
     detect_thresh = cfg.AVA.DETECTION_SCORE_THRESH
