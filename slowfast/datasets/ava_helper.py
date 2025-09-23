@@ -10,7 +10,7 @@ from slowfast.utils.env import pathmgr
 logger = logging.getLogger(__name__)
 
 FPS = 30
-AVA_VALID_FRAMES = np.arange(900, 1799, 0.5)
+AVA_VALID_FRAMES = range(900, 1799)
 
 
 def load_image_lists(cfg, is_train):
@@ -124,7 +124,7 @@ def get_keyframe_data(boxes_and_labels):
         0: 900
         30: 901
         """
-        return (sec - 900) * FPS
+        return (sec - 900) * FPS + (FPS // 2)
 
     keyframe_indices = []
     keyframe_boxes_and_labels = []
