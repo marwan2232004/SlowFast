@@ -197,6 +197,7 @@ def parse_bboxes_file(ann_filenames, ann_is_gt_box, detect_thresh, boxes_sample_
                     continue
 
                 # Box with format [x1, y1, x2, y2] with a range of [0, 1] as float.
+                print(row)
                 box_key = ",".join(row[2:6])
                 box = list(map(float, row[2:6]))
                 label = -1 if row[6] == "" else int(row[6])
