@@ -173,6 +173,8 @@ _C.TRAIN.MIXED_PRECISION = False
 # if True, inflate some params from imagenet model.
 _C.TRAIN.CHECKPOINT_IN_INIT = False
 
+_C.TRAIN.FINE_TUNE = False
+
 # ---------------------------------------------------------------------------- #
 # Augmentation options.
 # ---------------------------------------------------------------------------- #

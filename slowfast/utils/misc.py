@@ -172,7 +172,7 @@ def get_model_stats(model, cfg, mode, use_train_input):
     return count
 
 
-def log_model_info(model, cfg, use_train_input=True):
+def log_model_info(model, cfg, use_train_input=True, log_arch = True):
     """
     Log info, includes number of parameters, gpu usage, gflops and activation count.
         The model info is computed when the model is in validation mode.
@@ -183,7 +183,8 @@ def log_model_info(model, cfg, use_train_input=True):
         use_train_input (bool): if True, log info for training. Otherwise,
             log info for testing.
     """
-    logger.info("Model:\n{}".format(model))
+    if log_arch:
+        logger.info("Model:\n{}".format(model))
     params = params_count(model)
     logger.info("Params: {:,}".format(params))
     logger.info("Mem: {:,} MB".format(gpu_mem_usage()))

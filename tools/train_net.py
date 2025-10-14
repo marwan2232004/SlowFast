@@ -570,6 +570,17 @@ def train(cfg):
             clear_name_pattern=cfg.TRAIN.CHECKPOINT_CLEAR_NAME_PATTERN,
             image_init=cfg.TRAIN.CHECKPOINT_IN_INIT,
         )
+        if cfg.TRAIN.FINE_TUNE:
+            for name, param in model.named_parameters():
+                if "head" not in name: 
+                    param.requires_grad = False
+                else:
+                    logger.info("Training:", name)
+            logger.info("Model info after loading pretrained model")        
+            if du.is_master_proc() and cfg.LOG_MODEL_INFO:
+                flops, params = misc.log_model_info(model, cfg, log_arch=False)    
+            optimizer = optim.construct_optimizer(model, cfg)
+
         start_epoch = checkpoint_epoch + 1
     else:
         start_epoch = 0
