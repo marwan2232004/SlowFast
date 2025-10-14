@@ -70,12 +70,24 @@ _LOSSES = {
 }
 
 
-def get_loss_func(loss_name):
+def get_loss_func(loss_name, class_weights=None):
     """
     Retrieve the loss given the loss name.
-    Args (int):
-        loss_name: the name of the loss to use.
+    Args:
+        loss_name (str): name of the loss function.
+        class_weights (torch.Tensor or None): optional tensor of class weights.
     """
-    if loss_name not in _LOSSES.keys():
-        raise NotImplementedError("Loss {} is not supported".format(loss_name))
-    return _LOSSES[loss_name]
+    if loss_name not in _LOSSES:
+        raise NotImplementedError(f"Loss '{loss_name}' is not supported.")
+
+    loss_cls = _LOSSES[loss_name]
+
+    if class_weights is not None:
+        if loss_name == "cross_entropy":
+            return loss_cls(weight=class_weights)
+        elif loss_name == "bce_logit":
+            return loss_cls(pos_weight=class_weights)
+        elif loss_name == "bce":
+            return loss_cls(weight=class_weights)
+
+    return loss_cls()

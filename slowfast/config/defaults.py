@@ -440,6 +440,8 @@ _C.MODEL.FROZEN_BN = False
 # If True, AllReduce gradients are compressed to fp16
 _C.MODEL.FP16_ALLREDUCE = False
 
+_C.MODEL.CLASS_WEIGHTS = [1.0, 1.0, 1.0, 1.0]
+
 
 # -----------------------------------------------------------------------------
 # MViT options
