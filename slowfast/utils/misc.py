@@ -52,6 +52,25 @@ def params_count(model, ignore_bn=False):
                     count += p.numel()
     return count
 
+def count_trainable_params(model, ignore_bn=False):
+    """
+    Count the number of trainable parameters in a PyTorch model.
+
+    Args:
+        model (nn.Module): The model to count parameters for.
+        ignore_bn (bool): If True, ignore BatchNorm layers.
+
+    Returns:
+        int: The total number of trainable parameters.
+    """
+    count = 0
+    for name, module in model.named_modules():
+        if ignore_bn and isinstance(module, nn.BatchNorm3d):
+            continue
+        for p in module.parameters(recurse=False):
+            if p.requires_grad:
+                count += p.numel()
+    return count
 
 def gpu_mem_usage():
     """
@@ -172,7 +191,7 @@ def get_model_stats(model, cfg, mode, use_train_input):
     return count
 
 
-def log_model_info(model, cfg, use_train_input=True, log_arch = True):
+def log_model_info(model, cfg, use_train_input=True):
     """
     Log info, includes number of parameters, gpu usage, gflops and activation count.
         The model info is computed when the model is in validation mode.
@@ -183,8 +202,7 @@ def log_model_info(model, cfg, use_train_input=True, log_arch = True):
         use_train_input (bool): if True, log info for training. Otherwise,
             log info for testing.
     """
-    if log_arch:
-        logger.info("Model:\n{}".format(model))
+    logger.info("Model:\n{}".format(model))
     params = params_count(model)
     logger.info("Params: {:,}".format(params))
     logger.info("Mem: {:,} MB".format(gpu_mem_usage()))

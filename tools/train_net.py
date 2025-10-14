@@ -27,6 +27,7 @@ from slowfast.models.contrastive import (
 )
 from slowfast.utils.meters import AVAMeter, EpochTimer, TrainMeter, ValMeter
 from slowfast.utils.multigrid import MultigridSchedule
+from slowfast.utils.misc import count_trainable_params
 
 logger = logging.get_logger(__name__)
 
@@ -574,11 +575,11 @@ def train(cfg):
             for name, param in model.named_parameters():
                 if "head" not in name: 
                     param.requires_grad = False
-                else:
-                    logger.info("Training:", name)
+                    
             logger.info("Model info after loading pretrained model")        
             if du.is_master_proc() and cfg.LOG_MODEL_INFO:
-                flops, params = misc.log_model_info(model, cfg, log_arch=False)    
+                params = count_trainable_params(model)
+                logger.info("Trainable Params: {:,}".format(params))
             optimizer = optim.construct_optimizer(model, cfg)
 
         start_epoch = checkpoint_epoch + 1
