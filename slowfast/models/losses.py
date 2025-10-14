@@ -70,7 +70,7 @@ _LOSSES = {
 }
 
 
-def get_loss_func(loss_name, class_weights=None):
+def get_loss_func(loss_name, class_weights=None, device="cuda"):
     """
     Retrieve the loss given the loss name.
     Args:
@@ -83,6 +83,11 @@ def get_loss_func(loss_name, class_weights=None):
     loss_cls = _LOSSES[loss_name]
 
     if class_weights is not None:
+        if not isinstance(class_weights, torch.Tensor):
+            class_weights = torch.tensor(class_weights, dtype=torch.float)
+
+        class_weights = class_weights.to(device)
+
         if loss_name == "cross_entropy":
             return loss_cls(weight=class_weights)
         elif loss_name == "bce_logit":
