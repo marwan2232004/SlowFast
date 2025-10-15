@@ -414,15 +414,15 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
 
     # write to tensorboard format if available.
     if writer is not None:
-        # if cfg.DETECTION.ENABLE:
-        #     writer.add_scalars({"Val/mAP": val_meter.full_map}, global_step=cur_epoch)
-        # else:
-        all_preds = [pred.clone().detach() for pred in val_meter.all_preds]
-        all_labels = [label.clone().detach() for label in val_meter.all_labels]
-        if cfg.NUM_GPUS:
-            all_preds = [pred.cpu() for pred in all_preds]
-            all_labels = [label.cpu() for label in all_labels]
-        writer.plot_eval(preds=all_preds, labels=all_labels, global_step=cur_epoch)
+        if cfg.DETECTION.ENABLE:
+            writer.add_scalars({"Val/mAP": val_meter.full_map}, global_step=cur_epoch)
+        else:
+            all_preds = [pred.clone().detach() for pred in val_meter.all_preds]
+            all_labels = [label.clone().detach() for label in val_meter.all_labels]
+            if cfg.NUM_GPUS:
+                all_preds = [pred.cpu() for pred in all_preds]
+                all_labels = [label.cpu() for label in all_labels]
+            writer.plot_eval(preds=all_preds, labels=all_labels, global_step=cur_epoch)
 
     val_meter.reset()
     return map
