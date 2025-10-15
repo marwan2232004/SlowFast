@@ -444,7 +444,8 @@ _C.MODEL.FP16_ALLREDUCE = False
 
 _C.MODEL.CLASS_WEIGHTS = [1.0, 1.0, 1.0, 1.0]
 
-
+# Patience in terms of epochs for early stopping. Put it to negative number to disable early stopping 
+_C.MODEL.PATIENCE = 10
 # -----------------------------------------------------------------------------
 # MViT options
 # -----------------------------------------------------------------------------

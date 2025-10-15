@@ -5,6 +5,7 @@
 
 import math
 import pprint
+import copy
 
 import numpy as np
 
@@ -409,6 +410,8 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
 
     # Log epoch stats.
     val_meter.log_epoch_stats(cur_epoch)
+    map = val_meter.full_map
+
     # write to tensorboard format if available.
     if writer is not None:
         if cfg.DETECTION.ENABLE:
@@ -422,6 +425,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
             writer.plot_eval(preds=all_preds, labels=all_labels, global_step=cur_epoch)
 
     val_meter.reset()
+    return map
 
 
 def calculate_and_update_precise_bn(loader, model, num_iters=200, use_gpu=True):
@@ -573,10 +577,10 @@ def train(cfg):
         )
         if cfg.TRAIN.FINE_TUNE:
             for name, param in model.named_parameters():
-                if "head" not in name: 
+                if "head" not in name:
                     param.requires_grad = False
-                    
-            logger.info("Model info after loading pretrained model")        
+
+            logger.info("Model info after loading pretrained model")
             if du.is_master_proc() and cfg.LOG_MODEL_INFO:
                 params = count_trainable_params(model)
                 logger.info("Trainable Params: {:,}".format(params))
@@ -618,6 +622,13 @@ def train(cfg):
         writer = tb.TensorboardWriter(cfg)
     else:
         writer = None
+
+    patience = 0
+    best_model = copy.deepcopy(model)
+    best_optimizer = copy.deepcopy(optimizer)
+    best_scaler = copy.deepcopy(scaler)
+    best_epochs = cfg.SOLVER.MAX_EPOCH
+    best_val_map = 0
 
     # Perform the training loop.
     logger.info("Start epoch: {}".format(start_epoch + 1))
@@ -734,7 +745,7 @@ def train(cfg):
             )
         # Evaluate the model on validation set.
         if is_eval_epoch:
-            eval_epoch(
+            map = eval_epoch(
                 val_loader,
                 model,
                 val_meter,
@@ -743,14 +754,56 @@ def train(cfg):
                 train_loader,
                 writer,
             )
+            if map > best_val_map:
+                if model is best_model:
+                    logger.info(
+                        "Current model is identical to the best saved model — keeping the same reference."
+                    )
+                else:
+                    del best_optimizer
+                    del best_scaler
+                    del best_model
+                patience = 0
+                best_model = copy.deepcopy(model)
+                best_optimizer = copy.deepcopy(optimizer)
+                best_scaler = copy.deepcopy(scaler)
+                best_epochs = cur_epoch
+                best_val_map = map
+            else:
+                patience += 1
+
+            if cfg.MODEL.PATIENCE > -1 and patience > cfg.MODEL.PATIENCE:
+                break
+
     if (
         start_epoch == cfg.SOLVER.MAX_EPOCH and not cfg.MASK.ENABLE
     ):  # final checkpoint load
         eval_epoch(val_loader, model, val_meter, start_epoch, cfg, train_loader, writer)
+
+    logger.info(f"Finished at epoch: {cur_epoch}")
+
+    logger.info("Saving best model...")
+
+    cu.save_checkpoint(
+        cfg.OUTPUT_DIR,
+        best_model,
+        best_optimizer,
+        cur_epoch,
+        cfg,
+        best_scaler if cfg.TRAIN.MIXED_PRECISION else None,
+        best=True
+    )
+
+
+    logger.info(
+        f"Best number of training epochs: {best_epochs}, Best mAP: {best_val_map}"
+    )
+
     if writer is not None:
         writer.close()
+
     result_string = (
-        "_p{:.2f}_f{:.2f} _t{:.2f}_m{:.2f} _a{:.2f} Top5 Acc: {:.2f} MEM: {:.2f} f: {:.4f}"
+        "_p{:.2f}_f{:.2f} _t{:.2f}_m{:.2f}  Top1 Acc:{:.2f}  Top5 Acc: {:.2f} MEM: {:.2f} f: {:.4f}"
         "".format(
             params / 1e6,
             flops,
@@ -766,6 +819,7 @@ def train(cfg):
             flops,
         )
     )
+
     logger.info("training done: {}".format(result_string))
 
     return result_string
