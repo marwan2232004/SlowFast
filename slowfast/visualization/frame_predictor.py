@@ -22,10 +22,10 @@ class FrameActionPredictor:
 
     def __init__(self, cfg, img_width, img_height, gpu_id=None):
         self.cfg = cfg
-        self.gpu_id = (
-            torch.cuda.current_device() if (cfg.NUM_GPUS and gpu_id is None) else gpu_id
-        )
-        self.model = build_model(cfg, gpu_id=self.gpu_id)
+        if cfg.NUM_GPUS:
+            self.gpu_id = torch.cuda.current_device() if gpu_id is None else gpu_id
+
+        self.model = build_model(cfg, gpu_id=gpu_id)
         self.model.eval()
 
         if cfg.DETECTION.ENABLE:
@@ -34,6 +34,8 @@ class FrameActionPredictor:
         logger.info("Start loading model weights.")
         cu.load_test_checkpoint(cfg, self.model)
         logger.info("Finish loading model weights")
+
+        logger.info(next(self.model.parameters()).device)
 
         self.seq_length = cfg.DATA.NUM_FRAMES * cfg.DATA.SAMPLING_RATE
         self.crop_size = cfg.DATA.TEST_CROP_SIZE
@@ -71,7 +73,7 @@ class FrameActionPredictor:
             total=len(all_frames),
             desc="Detecting boxes",
             ncols=100,
-            colour="cyan"
+            colour="cyan",
         ):
             bboxes = self.object_detector.get_boxes(frame)
             self.bboxes[idx] = bboxes
@@ -81,7 +83,7 @@ class FrameActionPredictor:
         Performs detection + action prediction for a single frame.
         """
 
-        boxes = self.bboxes[frame_idx]
+        boxes = self.bboxes[frame_idx].clone()
         if boxes is None or len(boxes) == 0:
             return [], []
 
@@ -128,7 +130,7 @@ class FrameActionPredictor:
         preds = preds.cpu()
         bboxes = bboxes[:, 1:].cpu()
 
-        return preds, bboxes
+        return preds, self.bboxes[frame_idx]
 
 
 class Detectron2Predictor:
