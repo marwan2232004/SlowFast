@@ -10,6 +10,7 @@ from demo_net import demo
 from test_net import test
 from train_net import train
 from visualization import visualize
+from my_demo_net import my_demo
 
 
 def main():
@@ -44,7 +45,10 @@ def main():
 
         # Run demo.
         if cfg.DEMO.ENABLE:
-            demo(cfg)
+            if cfg.DEMO.CUSTOM:
+                my_demo(cfg)
+            else:
+                demo(cfg)
 
 
 if __name__ == "__main__":

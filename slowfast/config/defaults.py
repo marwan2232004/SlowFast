@@ -1181,6 +1181,9 @@ _C.DEMO = CfgNode()
 # Run model in DEMO mode.
 _C.DEMO.ENABLE = False
 
+# Run model using my_demo_net.py
+_C.DEMO.CUSTOM = False
+
 # Path to a json file providing class_name - id mapping
 # in the format {"class_name1": id1, "class_name2": id2, ...}.
 _C.DEMO.LABEL_FILE_PATH = ""

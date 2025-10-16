@@ -67,13 +67,16 @@ class Predictor:
                 task.img_height,
                 task.img_width,
             )
+
         if self.cfg.DEMO.INPUT_FORMAT == "BGR":
             frames = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) for frame in frames]
 
         frames = [
             cv2_transform.scale(self.cfg.DATA.TEST_CROP_SIZE, frame) for frame in frames
         ]
+
         inputs = process_cv2_inputs(frames, self.cfg)
+
         if bboxes is not None:
             index_pad = torch.full(
                 size=(bboxes.shape[0], 1),
@@ -83,6 +86,7 @@ class Predictor:
 
             # Pad frame index for each box.
             bboxes = torch.cat([index_pad, bboxes], axis=1)
+
         if self.cfg.NUM_GPUS > 0:
             # Transfer the data to the current GPU device.
             if isinstance(inputs, (list,)):
@@ -94,6 +98,7 @@ class Predictor:
                 inputs = inputs.cuda(
                     device=torch.device(self.gpu_id), non_blocking=True
                 )
+
         if self.cfg.DETECTION.ENABLE and not bboxes.shape[0]:
             preds = torch.tensor([])
         else:
