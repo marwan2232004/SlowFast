@@ -3,8 +3,8 @@ import json
 import torch
 from tqdm.auto import tqdm
 from slowfast.utils import logging
-from slowfast.config.defaults import get_cfg
 from slowfast.visualization.frame_predictor import FrameActionPredictor
+import numpy as np
 
 logger = logging.get_logger(__name__)
 
@@ -19,6 +19,16 @@ def my_demo(cfg):
         label_map = json.load(f)
     id_to_label = {v: k for k, v in label_map.items()}
 
+    fixed_colors = [
+        (0, 255, 100),   # greenish
+        (255, 100, 0),   # orange
+        (100, 100, 255), # light red/blueish
+        (255, 255, 0)    # yellow
+    ]
+
+    unique_colors = {
+        cls_id: fixed_colors[i % len(fixed_colors)] for i, cls_id in enumerate(id_to_label.keys())
+    }
 
     cap = cv2.VideoCapture(input_video)
     frames = []
@@ -51,20 +61,45 @@ def my_demo(cfg):
             x1, y1, x2, y2 = map(int, box)
             label_id = torch.argmax(pred).item()
             conf = torch.max(pred).item()
+            label_text = id_to_label.get(label_id, "Unknown")
 
-            label_text = f"{id_to_label.get(label_id, 'Unknown')} ({conf:.2f})"
+            color = unique_colors.get(label_id, (0, 255, 100))
 
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 100), 1, cv2.LINE_AA)
+            # --- Draw bounding box ---
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1, cv2.LINE_AA)
 
-            (text_w, text_h), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
-            cv2.rectangle(frame, (x1, y1 - text_h - 6), (x1 + text_w + 2, y1), (0, 255, 100), -1)
+            # --- Label background (top of box) ---
+            text = f"{label_text}"
+            (text_w, text_h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+            text_x = max(x1, 0)
+            text_y = max(y1 - 8, text_h + 4)
+            text_x = min(text_x, width - text_w - 2)
 
+            cv2.rectangle(frame, (text_x, text_y - text_h - 4), (text_x + text_w + 4, text_y), color, -1)
             cv2.putText(
                 frame,
-                label_text,
-                (x1 + 2, y1 - 4),
+                text,
+                (text_x + 2, text_y - 2),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
+                0.4,
+                (0, 0, 0),
+                1,
+                cv2.LINE_AA,
+            )
+
+            # --- Confidence text (smaller, inside bottom of box) ---
+            conf_text = f"{conf:.2f}"
+            (conf_w, conf_h), _ = cv2.getTextSize(conf_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+            conf_x = min(x2 - conf_w - 3, width - conf_w - 3)
+            conf_y = min(y2 - 3, height - 3)
+
+            cv2.rectangle(frame, (conf_x - 2, conf_y - conf_h - 2), (conf_x + conf_w + 2, conf_y + 2), color, -1)
+            cv2.putText(
+                frame,
+                conf_text,
+                (conf_x, conf_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
                 (0, 0, 0),
                 1,
                 cv2.LINE_AA,
@@ -73,4 +108,4 @@ def my_demo(cfg):
         out.write(frame)
 
     out.release()
-    logger.info(f"Saved output video to: {output_file}")
+    logger.info(f"✅ Saved output video to: {output_file}")
