@@ -616,8 +616,8 @@ class VideoVisualizer:
                 frame,
                 preds,
                 bboxes,
-                alpha=alpha,
-                text_alpha=text_alpha,
+                alpha=0.9,
+                text_alpha=0.7,
                 ground_truth=ground_truth,
             )
             if adjusted:
