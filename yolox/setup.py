@@ -40,7 +40,7 @@ def get_extensions():
     return ext_modules
 
 
-with open("yolox/__init__.py", "r") as f:
+with open("__init__.py", "r") as f:
     version = re.search(
         r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
         f.read(), re.MULTILINE
