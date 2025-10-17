@@ -92,9 +92,10 @@ class FrameActionPredictor:
         Performs detection + action prediction for a single frame.
         """
 
-        boxes = self.bboxes[frame_idx].clone()
-        if boxes is None or len(boxes) == 0:
+        if self.bboxes[frame_idx] is None or len(self.bboxes[frame_idx]) == 0:
             return [], []
+
+        boxes = self.bboxes[frame_idx].clone()
 
         boxes = cv2_transform.scale_boxes(
             self.crop_size,
