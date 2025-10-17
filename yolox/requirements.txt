@@ -16,7 +16,6 @@ opencv-python
 lmdb 
 pandas 
 scipy  
-thop 
 lap 
 filterpy 
 motmetrics
