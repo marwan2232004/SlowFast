@@ -1206,6 +1206,27 @@ _C.DEMO.DETECTRON2_CFG = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
 _C.DEMO.DETECTRON2_WEIGHTS = "detectron2://COCO-Detection/faster_rcnn_R_50_FPN_3x/137849458/model_final_280758.pkl"
 # Threshold for choosing predicted bounding boxes by Detectron2.
 _C.DEMO.DETECTRON2_THRESH = 0.9
+
+# Whether to use YOLOX for object detection.
+# If False, the demo will skip YOLOX and rely on Detectron.
+_C.DEMO.USE_YOLOX = False
+
+# Path to the YOLOX experiment configuration file (.py) that defines the model structure and training setup.
+_C.DEMO.YOLOX_EXP = "yolox_s_mix_mot20_ch.py"
+
+# Path to the YOLOX model weights file (.pth or .pth.tar) used for inference.
+# This file contains the pretrained parameters for the selected YOLOX experiment.
+_C.DEMO.YOLOX_WEIGHTS = "yolox_s.pth.tar"
+
+# Confidence threshold for YOLOX detections.
+# Detections with confidence scores below this value will be filtered out.
+_C.DEMO.YOLOX_CONF_THRESH = 0.3
+
+# Non-Maximum Suppression (NMS) threshold for YOLOX.
+# Determines how much overlap is allowed between bounding boxes before they are suppressed.
+# Lower values make the model more selective (fewer overlapping boxes).
+_C.DEMO.YOLOX_NMS_THRESH = 0.45
+
 # Number of overlapping frames between 2 consecutive clips.
 # Increase this number for more frequent action predictions.
 # The number of overlapping frames cannot be larger than

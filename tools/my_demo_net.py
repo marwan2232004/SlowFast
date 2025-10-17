@@ -108,4 +108,4 @@ def my_demo(cfg):
         out.write(frame)
 
     out.release()
-    logger.info(f"✅ Saved output video to: {output_file}")
+    logger.info(f"Saved output video to: {output_file}")

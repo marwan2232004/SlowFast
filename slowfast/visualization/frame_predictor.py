@@ -10,6 +10,9 @@ from slowfast.datasets import cv2_transform
 from slowfast.models import build_model
 from slowfast.utils import checkpoint as cu
 from slowfast.visualization.utils import process_cv2_inputs
+from yolox.exp import get_exp
+from yolox.data.data_augment import ValTransform
+from yolox.utils import fuse_model, postprocess
 
 
 logger = logging.get_logger(__name__)
@@ -29,7 +32,13 @@ class FrameActionPredictor:
         self.model.eval()
 
         if cfg.DETECTION.ENABLE:
-            self.object_detector = Detectron2Predictor(cfg, gpu_id=self.gpu_id)
+            if cfg.DEMO.USE_YOLOX:
+                logger.info("Using YoloX for object detection.")
+                self.object_detector = YoloXPredictor(cfg, gpu_id=self.gpu_id)
+            else:
+                logger.info("Using Detectron2 for object detection.")
+                self.object_detector = Detectron2Predictor(cfg, gpu_id=self.gpu_id)
+
 
         logger.info("Start loading model weights.")
         cu.load_test_checkpoint(cfg, self.model)
@@ -151,3 +160,52 @@ class Detectron2Predictor:
         mask = outputs["instances"].pred_classes == 0  # person class only
         boxes = outputs["instances"].pred_boxes.tensor[mask]
         return boxes
+
+
+class YoloXPredictor:
+    """YoloX human detector."""
+
+    def __init__(self, cfg, gpu_id):
+        self.exp = get_exp(cfg.DEMO.YOLOX_EXP)
+        self.weights = cfg.DEMO.YOLOX_WEIGHTS
+        self.conf_thresh = cfg.DEMO.YOLOX_CONF_THRESH
+        self.nms_thresh = cfg.DEMO.YOLOX_NMS_THRESH
+        self.device = f"cuda:{gpu_id}" if cfg.NUM_GPUS > 0 else "cpu"
+        self.model = self.exp.get_model()
+        self.model.eval()
+        self.model.to(self.device)
+        ckpt = torch.load(
+            cfg.DEMO.YOLOX_WEIGHTS, map_location=self.device, weights_only=True
+        )
+        if "model" in ckpt:
+            self.model.load_state_dict(ckpt["model"])
+        else:
+            self.model.load_state_dict(ckpt)
+        self.model = fuse_model(self.model)
+        self.preproc = ValTransform(
+            rgb_means=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+        )
+
+    def get_boxes(self, frame):
+        height, width = frame.shape[:2]
+        img, _ = self.preproc(frame, None, self.exp.test_size)
+        img = torch.from_numpy(img).unsqueeze(0).float().to(self.device)
+        with torch.no_grad():
+            outputs = self.model(img)
+            outputs = postprocess(
+                outputs,
+                num_classes=1,
+                conf_thre=self.conf_thresh,
+                nms_thre=self.nms_thresh,
+            )
+
+        if outputs[0] is not None:
+            boxes = outputs[0][:, :4].cpu().numpy()
+            # Scale the boxes back to the original image scale
+            scale = min(
+                float(height) / img.shape[2], float(width) / img.shape[1]
+            )
+            boxes *= scale
+            return boxes
+
+        return None
