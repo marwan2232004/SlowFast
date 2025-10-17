@@ -166,7 +166,7 @@ class YoloXPredictor:
     """YoloX human detector."""
 
     def __init__(self, cfg, gpu_id):
-        self.exp = get_exp(cfg.DEMO.YOLOX_EXP)
+        self.exp = get_exp(cfg.DEMO.YOLOX_EXP, cfg.DEMO.YOLOX_EXP_NAME)
         self.weights = cfg.DEMO.YOLOX_WEIGHTS
         self.conf_thresh = cfg.DEMO.YOLOX_CONF_THRESH
         self.nms_thresh = cfg.DEMO.YOLOX_NMS_THRESH

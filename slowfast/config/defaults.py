@@ -1214,6 +1214,8 @@ _C.DEMO.USE_YOLOX = False
 # Path to the YOLOX experiment configuration file (.py) that defines the model structure and training setup.
 _C.DEMO.YOLOX_EXP = "yolox_s_mix_mot20_ch.py"
 
+_C.DEMO.YOLOX_EXP_NAME = "yolox-s"
+
 # Path to the YOLOX model weights file (.pth or .pth.tar) used for inference.
 # This file contains the pretrained parameters for the selected YOLOX experiment.
 _C.DEMO.YOLOX_WEIGHTS = "yolox_s.pth.tar"
