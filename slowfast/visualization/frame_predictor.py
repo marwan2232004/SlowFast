@@ -200,7 +200,7 @@ class YoloXPredictor:
             )
 
         if outputs[0] is not None:
-            boxes = outputs[0][:, :4].cpu().numpy()
+            boxes = outputs[0][:, :4].cpu()
             # Scale the boxes back to the original image scale
             scale = min(
                 float(height) / img.shape[2], float(width) / img.shape[1]
