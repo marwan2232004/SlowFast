@@ -6,7 +6,8 @@ import subprocess
 
 def prepare_for_annotation(video_path, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-    
+    video_name = os.path.splitext(os.path.basename(video_path))[0]
+    print(f"Processing {video_name}")
     # Command: ffmpeg -i input.mp4 -vf fps=1 output_%04d.jpg
     cmd = [
         'ffmpeg', 
