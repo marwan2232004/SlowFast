@@ -14,7 +14,7 @@ def prepare_for_annotation(video_path, output_dir):
         '-i', video_path, 
         '-vf', 'fps=1', 
         '-q:v', '2',  # High quality jpeg (2-31, lower is better)
-        os.path.join(output_dir, f"%04d.jpg"),
+        os.path.join(output_dir, f"{video_name}_%04d.jpg"),
         '-loglevel', 'error', # Quieter output
         '-y' # Overwrite output
     ]
