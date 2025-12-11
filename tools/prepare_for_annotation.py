@@ -2,41 +2,22 @@ import os
 import cv2
 from slowfast.utils.parser import generate_parser
 
+import subprocess
 
-def prepare_for_annotation(video_path: str, output_dir: str):
-    """Extracts one frame per second from a single video and saves them as images.
-
-    Args:
-        video_path (str): Path to the input video file.
-        output_dir (str): Directory where extracted frames will be saved.
-                          Will be created if it does not exist.
-    """
+def prepare_for_annotation(video_path, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    duration = int(total_frames / fps)
-
-    print(f"[INFO] Processing {os.path.basename(video_path)}")
-    print(f"[INFO] FPS: {fps}, Total Frames: {total_frames}, Duration: {duration}s")
-
-    for ts in range(duration + 1):
-        frame_idx = int(ts * fps)
-
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-        ret, frame = cap.read()
-
-        if not ret:
-            print(f"[WARN] Could not grab frame at {ts}s")
-            continue
-
-        out_name = f"{ts:04d}.jpg"
-        out_path = os.path.join(output_dir, out_name)
-        cv2.imwrite(out_path, frame)
-
-    cap.release()
-
+    
+    # Command: ffmpeg -i input.mp4 -vf fps=1 output_%04d.jpg
+    cmd = [
+        'ffmpeg', 
+        '-i', video_path, 
+        '-vf', 'fps=1', 
+        '-q:v', '2',  # High quality jpeg (2-31, lower is better)
+        os.path.join(output_dir, f"%04d.jpg"),
+        '-loglevel', 'error', # Quieter output
+        '-y' # Overwrite output
+    ]
+    subprocess.run(cmd)
 
 def prepare_videos_for_annotation(video_dir: str, output_root: str = "frames"):
     """Extracts frames from all videos in a directory and organizes them in subfolders.
