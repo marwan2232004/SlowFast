@@ -92,3 +92,51 @@ def load_config(args, path_to_config=None):
     # Create the checkpoint dir.
     cu.make_checkpoint_dir(cfg.OUTPUT_DIR)
     return cfg
+
+def generate_parser(arg_metadata=None, description=None):
+    """
+    Generate an argparse.ArgumentParser instance configured with arguments 
+    based on the given metadata.
+
+    Parameters:
+        arg_metadata (dict): 
+            A dictionary where each key is an argument name and the corresponding 
+            value is a dictionary of metadata that specifies how the argument should be parsed. 
+            The metadata can include keys such as 'type', 'default', and 'help'.
+            If a 'type' is not provided, it defaults to str.
+        description (str, optional): 
+            A description for the parser, which will be displayed in the help message.
+
+    Returns:
+        argparse.ArgumentParser:
+             An ArgumentParser instance with arguments added according to the provided metadata.
+
+    Notes:
+        - For non-boolean arguments, the metadata is passed directly to parser.add_argument().
+        - For boolean arguments if the default value is:
+            * True, an argument with the prefix "--no-" is created, which when used sets the value to False.
+            * False (or not provided), an argument with the prefix "--" is created, which when used sets the value to True.
+        - The function copies each metadata dictionary to avoid modifying the original data.
+        - An argument is marked as required if no default value is provided.
+    """
+    parser = argparse.ArgumentParser(description=description)
+    for name, param in arg_metadata.items():
+        param = dict(param)
+        if "type" not in param:
+            param["type"] = str
+        param["help"] = param.get("help", "")
+        param["required"] = "default" not in param
+        if param["type"] is bool:
+            param["default"] = param.get("default", False)
+            if param["default"] is True:
+                parser.add_argument(
+                    f"--no-{name}", dest=name, action="store_false", help=param["help"]
+                )
+            else:
+                parser.add_argument(
+                    f"--{name}", dest=name, action="store_true", help=param["help"]
+                )
+        else:
+            parser.add_argument(f"--{name}", **param)
+
+    return parser
