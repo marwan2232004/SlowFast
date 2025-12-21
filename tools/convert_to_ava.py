@@ -61,6 +61,9 @@ def video_to_ava(video_path):
     data_yaml = Path(video_path) / "data.yaml"
     labels_folder = Path(video_path) / "train" / "labels"
 
+    print(data_yaml)
+    print(labels_folder)
+
     if not (data_yaml.exists() and labels_folder.is_dir()):
         print(f"⚠️  Skipping {video_folder}: no data.yaml or labels folder")
         return None
