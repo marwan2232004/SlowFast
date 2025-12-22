@@ -10,7 +10,7 @@ from slowfast.utils.env import pathmgr
 logger = logging.getLogger(__name__)
 
 FPS = 30
-AVA_VALID_FRAMES = range(900, 1799)
+AVA_VALID_FRAMES = range(900, 2000)
 
 
 def load_image_lists(cfg, is_train):
