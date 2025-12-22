@@ -581,7 +581,7 @@ def train(cfg):
                     param.requires_grad = False
 
             logger.info("Model info after loading pretrained model")
-            if du.is_master_proc() and cfg.LOG_MODEL_INFO:
+            if du.is_master_proc():
                 params = count_trainable_params(model)
                 logger.info("Trainable Params: {:,}".format(params))
             optimizer = optim.construct_optimizer(model, cfg)
