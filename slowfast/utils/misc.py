@@ -72,6 +72,25 @@ def count_trainable_params(model, ignore_bn=False):
                 count += p.numel()
     return count
 
+def count_params(model, ignore_bn=False):
+    """
+    Count the number of parameters in a PyTorch model.
+
+    Args:
+        model (nn.Module): The model to count parameters for.
+        ignore_bn (bool): If True, ignore BatchNorm layers.
+
+    Returns:
+        int: The total number of parameters.
+    """
+    count = 0
+    for name, module in model.named_modules():
+        if ignore_bn and isinstance(module, nn.BatchNorm3d):
+            continue
+        for p in module.parameters(recurse=False):
+                count += p.numel()
+    return count
+
 def gpu_mem_usage():
     """
     Compute the GPU memory usage for the current device (GB).

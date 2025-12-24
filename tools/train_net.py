@@ -28,7 +28,7 @@ from slowfast.models.contrastive import (
 )
 from slowfast.utils.meters import AVAMeter, EpochTimer, TrainMeter, ValMeter
 from slowfast.utils.multigrid import MultigridSchedule
-from slowfast.utils.misc import count_trainable_params
+from slowfast.utils.misc import count_trainable_params,count_params
 
 logger = logging.get_logger(__name__)
 
@@ -582,7 +582,9 @@ def train(cfg):
 
             logger.info("Model info after loading pretrained model")
             if du.is_master_proc():
+                total_params = count_params(model)
                 params = count_trainable_params(model)
+                logger.info("Total Params: {:,}".format(total_params))
                 logger.info("Trainable Params: {:,}".format(params))
             optimizer = optim.construct_optimizer(model, cfg)
 
