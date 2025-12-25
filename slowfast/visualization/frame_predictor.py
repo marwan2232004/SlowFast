@@ -14,13 +14,12 @@ from yolox.exp import get_exp
 from yolox.data.data_augment import ValTransform
 from yolox.utils import fuse_model, postprocess
 
-
 logger = logging.get_logger(__name__)
-
 
 class FrameActionPredictor:
     """
     Performs per-frame action prediction using SlowFast + Detectron2.
+    Refactored for Memory Efficient Streaming.
     """
 
     def __init__(self, cfg, img_width, img_height, gpu_id=None):
@@ -39,7 +38,6 @@ class FrameActionPredictor:
                 logger.info("Using Detectron2 for object detection.")
                 self.object_detector = Detectron2Predictor(cfg, gpu_id=self.gpu_id)
 
-
         logger.info("Start loading model weights.")
         cu.load_test_checkpoint(cfg, self.model)
         logger.info("Finish loading model weights")
@@ -51,70 +49,35 @@ class FrameActionPredictor:
         self.img_height = img_height
         self.img_width = img_width
 
-    def get_clip(self, all_frames, center_idx):
+    def predict_single_step(self, clip, center_frame):
         """
-        Returns a temporal window centered at frame index 'center_idx'.
-        Pads symmetrically so that the center frame stays in the middle.
+        Performs detection + action prediction for a single streaming step.
         """
-        half = self.seq_length // 2
-        start = center_idx - half
-        end = center_idx + half + 1  # +1 to include the center frame properly
+        
+        boxes = self.object_detector.get_boxes(center_frame)
 
-        pad_left = max(0, -start)
-        pad_right = max(0, end - len(all_frames))
-
-        start = max(0, start)
-        end = min(len(all_frames), end)
-
-        clip = all_frames[start:end]
-
-        if pad_left > 0:
-            clip = [all_frames[0]] * pad_left + clip
-        if pad_right > 0:
-            clip = clip + [all_frames[-1]] * pad_right
-
-        return clip
-
-    def predict_boxes(self, all_frames):
-        self.bboxes = [{} for _ in range(len(all_frames))]  # safer than [{}] * len(...)
-        for idx, frame in tqdm(
-            enumerate(all_frames),
-            total=len(all_frames),
-            desc="Detecting boxes",
-            ncols=100,
-            colour="cyan",
-        ):
-            bboxes = self.object_detector.get_boxes(frame)
-            self.bboxes[idx] = bboxes
-
-    def predict_frame(self, all_frames, frame_idx):
-        """
-        Performs detection + action prediction for a single frame.
-        """
-
-        if self.bboxes[frame_idx] is None or len(self.bboxes[frame_idx]) == 0:
+        if boxes is None or len(boxes) == 0:
             return [], []
 
-        boxes = self.bboxes[frame_idx].clone()
-
-        boxes = cv2_transform.scale_boxes(
+        model_boxes = boxes.clone()
+        model_boxes = cv2_transform.scale_boxes(
             self.crop_size,
-            boxes,
+            model_boxes,
             self.img_height,
             self.img_width,
         )
 
-        clip = self.get_clip(all_frames, frame_idx)
-
+        # 3. Process Clip (Color conversion + Scaling)
+        # Note: clip is passed as a list of numpy arrays
+        processed_clip = clip.copy() # copy to avoid modifying original buffer
         if self.cfg.DEMO.INPUT_FORMAT == "BGR":
-            clip = [cv2.cvtColor(f, cv2.COLOR_BGR2RGB) for f in clip]
+            processed_clip = [cv2.cvtColor(f, cv2.COLOR_BGR2RGB) for f in processed_clip]
 
-        clip = [cv2_transform.scale(self.crop_size, f) for f in clip]
+        processed_clip = [cv2_transform.scale(self.crop_size, f) for f in processed_clip]
+        inputs = process_cv2_inputs(processed_clip, self.cfg)
 
-        inputs = process_cv2_inputs(clip, self.cfg)
-
-        # Prepare bboxes tensor
-        bboxes = boxes.clone()
+        # 4. Prepare Bounding Box Inputs
+        bboxes = model_boxes.clone()
         index_pad = torch.full(
             size=(bboxes.shape[0], 1),
             fill_value=float(0),
@@ -122,7 +85,7 @@ class FrameActionPredictor:
         )
         bboxes = torch.cat([index_pad, bboxes], dim=1)
 
-        # Move to GPU if needed
+        # 5. Move to GPU
         if self.cfg.NUM_GPUS > 0:
             if isinstance(inputs, (list,)):
                 for i in range(len(inputs)):
@@ -134,18 +97,17 @@ class FrameActionPredictor:
                     device=torch.device(self.gpu_id), non_blocking=True
                 )
 
+        # 6. Inference
         with torch.no_grad():
             preds = self.model(inputs, bboxes)
 
         preds = preds.cpu()
-        bboxes = bboxes[:, 1:].cpu()
-
-        return preds, self.bboxes[frame_idx]
-
+        
+        # Return the predictions and the original boxes (on CPU) for drawing
+        return preds, boxes.cpu()
 
 class Detectron2Predictor:
     """Detectron2 human detector."""
-
     def __init__(self, cfg, gpu_id=None):
         self.cfg = get_cfg()
         self.cfg.merge_from_file(model_zoo.get_config_file(cfg.DEMO.DETECTRON2_CFG))
@@ -165,7 +127,6 @@ class Detectron2Predictor:
 
 class YoloXPredictor:
     """YoloX human detector."""
-
     def __init__(self, cfg, gpu_id):
         self.exp = get_exp(cfg.DEMO.YOLOX_EXP, cfg.DEMO.YOLOX_EXP_NAME)
         self.weights = cfg.DEMO.YOLOX_WEIGHTS
