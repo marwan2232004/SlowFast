@@ -577,7 +577,7 @@ def train(cfg):
         )
         if cfg.TRAIN.FINE_TUNE:
             for name, param in model.named_parameters():
-                if "head" not in name and "s5" not in name and "s4" not in name and "s4_fuse" not in name:
+                if "head" not in name and "s5" not in name and "s4_fuse" not in name:
                     param.requires_grad = False
 
             logger.info("Model info after loading pretrained model")
