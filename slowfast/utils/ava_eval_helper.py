@@ -134,8 +134,7 @@ def evaluate_ava_from_files(labelmap, groundtruth, detections, exclusions):
 def compute_classification_precision_recall(groundtruth, detections):
     """
     Compute classification precision & recall.
-    Uses the image_key to find the frame, then matches GT labels to 
-    Pred labels by comparing their bounding box coordinates.
+    Matches boxes by rounding coordinates to 3 decimal places to avoid NaN/mismatches.
     """
     gt_boxes, gt_labels, _ = groundtruth
     pred_boxes, pred_labels, _ = detections
@@ -143,8 +142,12 @@ def compute_classification_precision_recall(groundtruth, detections):
     y_true = []
     y_pred = []
 
+    # Helper: Convert box to a tuple of strings with 3 decimal places
+    # This matches the %.03f formatting used in your write_results function
+    def box_to_key(box):
+        return tuple("{:.3f}".format(float(c)) for c in box)
+
     for key in gt_boxes:
-        # 1. Check if this video/frame exists in predictions
         if key not in pred_boxes:
             continue
 
@@ -153,21 +156,22 @@ def compute_classification_precision_recall(groundtruth, detections):
         p_boxes_list = pred_boxes[key]
         p_labels_list = pred_labels[key]
 
-        # 2. Create a lookup map for this specific frame
-        # Key: tuple of box coords -> Value: predicted label
-        pred_map = {tuple(box): label for box, label in zip(p_boxes_list, p_labels_list)}
+        # Create the lookup map using the 3-decimal string keys
+        pred_map = {box_to_key(box): label for box, label in zip(p_boxes_list, p_labels_list)}
 
-        # 3. Match each Ground Truth box to its corresponding Prediction
         for gt_box, gt_label in zip(g_boxes_list, g_labels_list):
-            gt_box_tuple = tuple(gt_box)
+            gt_box_key = box_to_key(gt_box)
             
-            if gt_box_tuple in pred_map:
+            if gt_box_key in pred_map:
                 y_true.append(gt_label)
-                y_pred.append(pred_map[gt_box_tuple])
-            else:
-                continue
+                y_pred.append(pred_map[gt_box_key])
 
-    # 4. Compute metrics
+    # If y_true is empty, no boxes matched, which causes the NaN result.
+    if not y_true:
+        print("Warning: No matching boxes found. Check if GT and Pred use the same coordinate system.")
+        return 0.0, 0.0
+
+    # Compute metrics
     precision = precision_score(y_true, y_pred, average="macro", zero_division=0)
     recall = recall_score(y_true, y_pred, average="macro", zero_division=0)
 
