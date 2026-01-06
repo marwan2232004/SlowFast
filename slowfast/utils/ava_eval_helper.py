@@ -208,9 +208,7 @@ def evaluate_ava(
 
     results = run_evaluation(categories, groundtruth, detections, excluded_keys)
 
-    cls_precision, cls_recall = compute_classification_precision_recall(
-        groundtruth, detections
-    )
+    cls_precision, cls_recall = compute_classification_precision_recall(groundtruth, detections)
 
     logger.info("AVA eval done in %f seconds." % (time.time() - eval_start))
     return results["PascalBoxes_Precision/mAP@0.5IOU"],cls_precision, cls_recall
@@ -317,7 +315,7 @@ def get_ava_eval_data(
 
         one_scores = scores[i].tolist()
         for cls_idx, score in enumerate(one_scores):
-            if cls_idx + 1 in class_whitelist:
+            if cls_idx + 1 in class_whitelist and score > 0.7:
                 out_scores[key].append(score)
                 out_labels[key].append(cls_idx + 1)
                 out_boxes[key].append(batch_box[1:])
