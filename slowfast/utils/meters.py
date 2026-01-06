@@ -201,7 +201,7 @@ class AVAMeter:
         else:
             groundtruth = self.mini_groundtruth
 
-        self.full_map = evaluate_ava(
+        self.full_map, self.precision, self.recall = evaluate_ava(
             all_preds,
             all_ori_boxes,
             all_metadata.tolist(),
@@ -212,7 +212,7 @@ class AVAMeter:
             video_idx_to_name=self.video_idx_to_name,
         )
         if log:
-            stats = {"mode": self.mode, "map": self.full_map}
+            stats = {"mode": self.mode, "map": self.full_map, "precision": self.precision, "recall": self.recall}
             logging.log_json_stats(stats, self.output_dir)
 
         map_str = "{:.{prec}f}".format(self.full_map * 100.0, prec=2)
@@ -234,6 +234,8 @@ class AVAMeter:
                 "cur_epoch": "{}".format(cur_epoch + 1),
                 "mode": self.mode,
                 "map": self.full_map,
+                "precision": self.precision, 
+                "recall": self.recall,
                 "gpu_mem": "{:.2f}G".format(misc.gpu_mem_usage()),
                 "RAM": "{:.2f}/{:.2f}G".format(*misc.cpu_mem_usage()),
             }
