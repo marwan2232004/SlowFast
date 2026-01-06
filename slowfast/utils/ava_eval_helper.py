@@ -137,7 +137,7 @@ def compute_classification_precision_recall(groundtruth, detections):
     Matches boxes by rounding coordinates to 3 decimal places to avoid NaN/mismatches.
     """
     gt_boxes, gt_labels, _ = groundtruth
-    pred_boxes, pred_labels, _ = detections
+    pred_boxes, pred_labels, pred_scores = detections
 
     y_true = []
     y_pred = []
@@ -155,9 +155,16 @@ def compute_classification_precision_recall(groundtruth, detections):
         g_labels_list = gt_labels[key]
         p_boxes_list = pred_boxes[key]
         p_labels_list = pred_labels[key]
+        p_scores_list = pred_scores[key]
 
         # Create the lookup map using the 3-decimal string keys
-        pred_map = {box_to_key(box): label for box, label in zip(p_boxes_list, p_labels_list)}
+        pred_map = {
+            box_to_key(box): label
+            for box, label, score in zip(
+                p_boxes_list, p_labels_list, p_scores_list
+            )
+            if score >= 0.7
+        }
 
         for gt_box, gt_label in zip(g_boxes_list, g_labels_list):
             gt_box_key = box_to_key(gt_box)
@@ -315,7 +322,7 @@ def get_ava_eval_data(
 
         one_scores = scores[i].tolist()
         for cls_idx, score in enumerate(one_scores):
-            if cls_idx + 1 in class_whitelist and score > 0.7:
+            if cls_idx + 1 in class_whitelist:
                 out_scores[key].append(score)
                 out_labels[key].append(cls_idx + 1)
                 out_boxes[key].append(batch_box[1:])
