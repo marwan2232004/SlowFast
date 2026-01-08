@@ -282,7 +282,7 @@ def train_epoch(
 
 
 @torch.no_grad()
-def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, writer):
+def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
     """
     Evaluate the model on the val set.
     Args:
@@ -299,6 +299,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
     # Evaluation mode enabled. The running stats would not be updated.
     model.eval()
     val_meter.iter_tic()
+    loss_fun = losses.get_loss_func(cfg.MODEL.LOSS_FUNC, cfg.MODEL.CLASS_WEIGHTS)
 
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(val_loader):
         if cfg.NUM_GPUS:
@@ -328,6 +329,15 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
             ori_boxes = meta["ori_boxes"]
             metadata = meta["metadata"]
 
+            loss = loss_fun(preds, labels)
+
+            if isinstance(loss, (list, tuple)):
+                loss, _ = loss
+
+            if cfg.NUM_GPUS > 1:
+                loss = du.all_reduce([loss])[0]
+            loss = loss.item()
+
             if cfg.NUM_GPUS:
                 preds = preds.cpu()
                 ori_boxes = ori_boxes.cpu()
@@ -340,7 +350,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
 
             val_meter.iter_toc()
             # Update and log stats.
-            val_meter.update_stats(preds, ori_boxes, metadata)
+            val_meter.update_stats(preds, ori_boxes, metadata, loss)
 
         else:
             if cfg.TASK == "ssl" and cfg.MODEL.MODEL_NAME == "ContrastiveModel":
@@ -753,7 +763,6 @@ def train(cfg):
                 val_meter,
                 cur_epoch,
                 cfg,
-                train_loader,
                 writer,
             )
             if map > best_val_map:
@@ -780,7 +789,7 @@ def train(cfg):
     if (
         start_epoch == cfg.SOLVER.MAX_EPOCH and not cfg.MASK.ENABLE
     ):  # final checkpoint load
-        eval_epoch(val_loader, model, val_meter, start_epoch, cfg, train_loader, writer)
+        eval_epoch(val_loader, model, val_meter, start_epoch, cfg, writer)
 
     logger.info(f"Finished at epoch: {cur_epoch}")
 
@@ -798,7 +807,7 @@ def train(cfg):
 
 
     logger.info(
-        f"Best number of training epochs: {best_epochs}, Best mAP: {best_val_map}"
+        f"Best number of training epochs: {best_epochs+1}, Best mAP: {best_val_map}"
     )
 
     if writer is not None:

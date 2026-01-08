@@ -212,7 +212,7 @@ class AVAMeter:
             video_idx_to_name=self.video_idx_to_name,
         )
         if log:
-            stats = {"mode": self.mode, "map": self.full_map, "precision": self.precision, "recall": self.recall}
+            stats = {"mode": self.mode, "map": self.full_map, "precision": self.precision, "recall": self.recall ,"loss": self.loss}
             logging.log_json_stats(stats, self.output_dir)
 
         map_str = "{:.{prec}f}".format(self.full_map * 100.0, prec=2)
@@ -239,6 +239,10 @@ class AVAMeter:
                 "gpu_mem": "{:.2f}G".format(misc.gpu_mem_usage()),
                 "RAM": "{:.2f}/{:.2f}G".format(*misc.cpu_mem_usage()),
             }
+
+            if self.mode == "val":
+                stats["loss"] = self.loss
+                
             logging.log_json_stats(stats, self.output_dir)
 
 
