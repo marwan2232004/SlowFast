@@ -122,6 +122,7 @@ class AVAMeter:
                 "dt_data": self.data_timer.seconds(),
                 "dt_net": self.net_timer.seconds(),
                 "mode": self.mode,
+                "loss": self.loss.get_win_median(),
             }
         elif self.mode == "test":
             stats = {
@@ -212,7 +213,7 @@ class AVAMeter:
             video_idx_to_name=self.video_idx_to_name,
         )
         if log:
-            stats = {"mode": self.mode, "map": self.full_map, "precision": self.precision, "recall": self.recall ,"loss": self.loss}
+            stats = {"mode": self.mode, "map": self.full_map, "precision": self.precision, "recall": self.recall ,"loss": self.loss.get_global_avg()}
             logging.log_json_stats(stats, self.output_dir)
 
         map_str = "{:.{prec}f}".format(self.full_map * 100.0, prec=2)
@@ -241,7 +242,7 @@ class AVAMeter:
             }
 
             if self.mode == "val":
-                stats["loss"] = self.loss
+                stats["loss"] = self.loss.get_global_avg()
                 
             logging.log_json_stats(stats, self.output_dir)
 
