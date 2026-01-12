@@ -586,9 +586,19 @@ def train(cfg):
             image_init=cfg.TRAIN.CHECKPOINT_IN_INIT,
         )
         if cfg.TRAIN.FINE_TUNE:
+            for param in model.parameters():
+                param.requires_grad = False
+
             for name, param in model.named_parameters():
-                if "head" not in name and "s5" not in name and "s4_fuse" not in name:
-                    param.requires_grad = False
+                if "head" in name:
+                    param.requires_grad = True
+
+            for name, param in model.named_parameters():
+                if (
+                    "s5.pathway0_res2" in name or
+                    "s5.pathway1_res2" in name
+                ):
+                    param.requires_grad = True
 
             logger.info("Model info after loading pretrained model")
             if du.is_master_proc():
