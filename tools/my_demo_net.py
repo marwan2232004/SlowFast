@@ -1,4 +1,5 @@
 import cv2
+import os
 import json
 import torch
 from tqdm.auto import tqdm
@@ -131,7 +132,9 @@ def my_demo(cfg):
     pbar.close()
     logger.info(f"Total Utilization: {current_prod:.2f}%")
 
-    with open("readings.txt", "w") as f:
+    video_name  = os.path.splitext(cfg.DEMO.INPUT_VIDEO)[0]
+
+    with open(f"{video_name}_readings.txt", "w") as f:
         for prod in readings:
             f.write(f"{prod}\n")
             
