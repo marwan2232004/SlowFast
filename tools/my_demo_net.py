@@ -66,7 +66,7 @@ def draw_predictions(frame, boxes, preds, id_to_label, unique_colors):
 def draw_productivity_dashboard(frame, productivity):
     """Draws the global productivity overlay in the top-left corner."""
     cv2.rectangle(frame, (0, 0), (320, 50), (0, 0, 0), -1)
-    score_text = f"Productivity: {productivity:.1f}%"
+    score_text = f"Utilization Rate: {productivity:.1f}%"
     cv2.putText(frame, score_text, (10, 35), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
 
@@ -91,10 +91,11 @@ def my_demo(cfg):
 
     # 3. Main Processing Loop
     total_work_hits, total_all_hits = 0, 0
+    readings = []
     pbar = tqdm(total=total_frames, desc="Processing", colour="green", ncols=100)
 
     keep_reading = True
-    for _ in range(total_frames):
+    for i in range(total_frames):
         # Manage Buffer
         while len(frame_buffer) < predictor.seq_length and keep_reading:
             ret, frame = cap.read()
@@ -117,6 +118,9 @@ def my_demo(cfg):
         current_prod = (total_work_hits / total_all_hits * 100) if total_all_hits > 0 else 0.0
         draw_productivity_dashboard(vis_frame, current_prod)
 
+        if i and i % fps == 0:
+            readings.append(current_prod)
+
         out.write(vis_frame)
         frame_buffer.popleft()
         pbar.update(1)
@@ -125,4 +129,10 @@ def my_demo(cfg):
     cap.release()
     out.release()
     pbar.close()
-    logger.info(f"FINAL PRODUCTIVITY: {current_prod:.2f}%")
+    logger.info(f"Total Utilization: {current_prod:.2f}%")
+
+    with open("readings.txt", "w") as f:
+        for prod in readings:
+            f.write(f"{prod}\n")
+            
+        f.write(f"Total Utilization: {current_prod}")    
