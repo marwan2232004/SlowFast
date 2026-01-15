@@ -118,7 +118,7 @@ def my_demo(cfg):
         current_prod = (total_work_hits / total_all_hits * 100) if total_all_hits > 0 else 0.0
         draw_productivity_dashboard(vis_frame, current_prod)
 
-        if i and i % fps == 0:
+        if i and i % max(1, int(round(fps))) == 0:
             readings.append(current_prod)
 
         out.write(vis_frame)
