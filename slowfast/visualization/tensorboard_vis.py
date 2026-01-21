@@ -113,7 +113,7 @@ class TensorboardWriter:
             cmtx = confusion_matrix(
                 labels_01, preds_01, labels=list(range(self.cfg.MODEL.NUM_CLASSES))
             )
-            print("matrix: ", cmtx)
+
             # Add full confusion matrix.
             add_confusion_matrix(
                 self.writer,
