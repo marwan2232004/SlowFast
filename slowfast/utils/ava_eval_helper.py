@@ -35,6 +35,7 @@ import numpy as np
 from sklearn.metrics import precision_score, recall_score
 import slowfast.utils.distributed as du
 from slowfast.utils.env import pathmgr
+from collections import Counter
 from ava_evaluation import (
     object_detection_evaluation,
     standard_fields,
@@ -181,6 +182,9 @@ def compute_classification_precision_recall(groundtruth, detections):
     # Compute metrics
     precision = precision_score(y_true, y_pred, average="binary", zero_division=0)
     recall = recall_score(y_true, y_pred, average="binary", zero_division=0)
+
+    print("True 1 counts:", dict(y_true))
+    print("Pred 2 counts:", dict(y_pred))
 
     return precision, recall, y_true, y_pred
 

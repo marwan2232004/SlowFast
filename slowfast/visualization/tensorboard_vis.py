@@ -105,6 +105,8 @@ class TensorboardWriter:
             global step (Optional[int]): current step in eval/test.
         """
         if self.cfg.DETECTION.ENABLE:
+            print("True 1 counts 2:", dict(labels))
+            print("Pred 2 counts 2:", dict(preds))
             cmtx = confusion_matrix(labels, preds, labels=list(range(self.cfg.MODEL.NUM_CLASSES)))
             # Add full confusion matrix.
             add_confusion_matrix(
