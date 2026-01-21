@@ -183,9 +183,6 @@ def compute_classification_precision_recall(groundtruth, detections):
     precision = precision_score(y_true, y_pred, average="binary", zero_division=0)
     recall = recall_score(y_true, y_pred, average="binary", zero_division=0)
 
-    print("True 1 counts:", dict(Counter(y_true)))
-    print("Pred 2 counts:", dict(Counter(y_pred)))
-
     return precision, recall, y_true, y_pred
 
 def evaluate_ava(

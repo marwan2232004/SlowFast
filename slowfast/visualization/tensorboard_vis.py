@@ -14,7 +14,6 @@ from slowfast.utils.misc import get_class_names
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 from sklearn.metrics import confusion_matrix
-from collections import Counter
 
 logger = logging.get_logger(__name__)
 log.getLogger("matplotlib").setLevel(log.ERROR)
@@ -106,9 +105,8 @@ class TensorboardWriter:
             global step (Optional[int]): current step in eval/test.
         """
         if self.cfg.DETECTION.ENABLE:
-            print("True 1 counts 2:", dict(Counter(labels)))
-            print("Pred 2 counts 2:", dict(Counter(preds)))
             cmtx = confusion_matrix(labels, preds, labels=list(range(self.cfg.MODEL.NUM_CLASSES)))
+            print("matrix: ", cmtx)
             # Add full confusion matrix.
             add_confusion_matrix(
                 self.writer,
