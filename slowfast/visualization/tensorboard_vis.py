@@ -53,7 +53,9 @@ class TensorboardWriter:
         self.writer = SummaryWriter(log_dir=log_dir)
         logger.info(
             "To see logged results in Tensorboard, please launch using the command \
-            `tensorboard  --port=<port-number> --logdir {}`".format(log_dir)
+            `tensorboard  --port=<port-number> --logdir {}`".format(
+                log_dir
+            )
         )
 
         if cfg.TENSORBOARD.CLASS_NAMES_PATH != "":
@@ -105,7 +107,12 @@ class TensorboardWriter:
             global step (Optional[int]): current step in eval/test.
         """
         if self.cfg.DETECTION.ENABLE:
-            cmtx = confusion_matrix(labels - 1, preds - 1, labels=list(range(self.cfg.MODEL.NUM_CLASSES)))
+            labels_01 = [x - 1 for x in labels]
+            preds_01 = [x - 1 for x in preds]
+
+            cmtx = confusion_matrix(
+                labels_01, preds_01, labels=list(range(self.cfg.MODEL.NUM_CLASSES))
+            )
             print("matrix: ", cmtx)
             # Add full confusion matrix.
             add_confusion_matrix(
