@@ -179,10 +179,10 @@ def compute_classification_precision_recall(groundtruth, detections):
         return 0.0, 0.0
 
     # Compute metrics
-    precision = precision_score(y_true, y_pred, average="macro", zero_division=0)
-    recall = recall_score(y_true, y_pred, average="macro", zero_division=0)
+    precision = precision_score(y_true, y_pred, average="binary", zero_division=0)
+    recall = recall_score(y_true, y_pred, average="binary", zero_division=0)
 
-    return precision, recall
+    return precision, recall, y_true, y_pred
 
 def evaluate_ava(
     preds,
@@ -215,10 +215,10 @@ def evaluate_ava(
 
     results = run_evaluation(categories, groundtruth, detections, excluded_keys)
 
-    cls_precision, cls_recall = compute_classification_precision_recall(groundtruth, detections)
+    cls_precision, cls_recall, y_true, y_pred = compute_classification_precision_recall(groundtruth, detections)
 
     logger.info("AVA eval done in %f seconds." % (time.time() - eval_start))
-    return results["PascalBoxes_Precision/mAP@0.5IOU"],cls_precision, cls_recall
+    return results["PascalBoxes_Precision/mAP@0.5IOU"],cls_precision, cls_recall, y_true, y_pred
     
 
 

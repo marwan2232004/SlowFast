@@ -202,7 +202,7 @@ class AVAMeter:
         else:
             groundtruth = self.mini_groundtruth
 
-        self.full_map, self.precision, self.recall = evaluate_ava(
+        self.full_map, self.precision, self.recall, self.labels, self.preds = evaluate_ava(
             all_preds,
             all_ori_boxes,
             all_metadata.tolist(),

@@ -13,6 +13,7 @@ import torch
 from slowfast.utils.misc import get_class_names
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
+from sklearn.metrics import confusion_matrix
 
 logger = logging.get_logger(__name__)
 log.getLogger("matplotlib").setLevel(log.ERROR)
@@ -56,11 +57,11 @@ class TensorboardWriter:
         )
 
         if cfg.TENSORBOARD.CLASS_NAMES_PATH != "":
-            if cfg.DETECTION.ENABLE:
-                logger.info(
-                    "Plotting confusion matrix is currently \
-                    not supported for detection."
-                )
+            # if cfg.DETECTION.ENABLE:
+            #     logger.info(
+            #         "Plotting confusion matrix is currently \
+            #         not supported for detection."
+            #     )
             (
                 self.class_names,
                 self.parent_map,
@@ -103,6 +104,17 @@ class TensorboardWriter:
             labels (tensor or list of tensors): list of labels.
             global step (Optional[int]): current step in eval/test.
         """
+        if self.cfg.DETECTION.ENABLE:
+            cmtx = confusion_matrix(labels, preds, labels=list(range(self.cfg.MODEL.NUM_CLASSES)))
+            # Add full confusion matrix.
+            add_confusion_matrix(
+                self.writer,
+                cmtx,
+                self.cfg.MODEL.NUM_CLASSES,
+                global_step=global_step,
+                class_names=self.class_names,
+                figsize=self.cm_figsize,
+            )
         if not self.cfg.DETECTION.ENABLE:
             cmtx = None
             if self.cfg.TENSORBOARD.CONFUSION_MATRIX.ENABLE:

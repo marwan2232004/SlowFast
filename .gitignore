@@ -1,0 +1,7 @@
+.python-version
+pyproject.toml
+uv.lock
+main.py
+extract_data.py
+metrics.csv
+test.txt

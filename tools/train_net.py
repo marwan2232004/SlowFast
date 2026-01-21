@@ -195,7 +195,7 @@ def train_epoch(
             # write to tensorboard format if available.
             if writer is not None:
                 writer.add_scalars(
-                    {"Train/loss": loss, "Train/lr": lr},
+                    {"Train/loss": loss},
                     global_step=data_size * cur_epoch + cur_iter,
                 )
 
@@ -303,7 +303,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
 
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(val_loader):
         if cfg.NUM_GPUS:
-            # Transferthe data to the current GPU device.
+            # Transfer data to the current GPU device.
             if isinstance(inputs, (list,)):
                 for i in range(len(inputs)):
                     inputs[i] = inputs[i].cuda(non_blocking=True)
@@ -425,7 +425,11 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
     # write to tensorboard format if available.
     if writer is not None:
         if cfg.DETECTION.ENABLE:
-            writer.add_scalars({"Val/mAP": val_meter.full_map}, global_step=cur_epoch)
+            writer.add_scalars({"Val/loss": val_meter.loss.get_global_avg(),
+                                "Val/mAP": val_meter.full_map, 
+                                "Val/Precision": val_meter.precision, 
+                                "Val/Recall": val_meter.recall}, global_step=cur_epoch)
+            writer.plot_eval(preds=val_meter.preds, labels=val_meter.labels, global_step=cur_epoch)
         else:
             all_preds = [pred.clone().detach() for pred in val_meter.all_preds]
             all_labels = [label.clone().detach() for label in val_meter.all_labels]
