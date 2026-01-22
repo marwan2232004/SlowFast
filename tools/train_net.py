@@ -599,7 +599,7 @@ def train(cfg):
 
             for name, param in model.named_parameters():
                 if (
-                    "s5.pathway0_res2" in name or
+                    # "s5.pathway0_res2" in name or
                     "s5.pathway1_res2" in name
                 ):
                     param.requires_grad = True
