@@ -744,6 +744,9 @@ _C.DATA.RANDOM_FLIP = True
 # If True, calculate the map as metric.
 _C.DATA.MULTI_LABEL = False
 
+# used when Detection is enabled
+_C.DATA.SINGLE_LABEL = False
+
 # Method to perform the ensemble, options include "sum" and "max".
 _C.DATA.ENSEMBLE_METHOD = "sum"
 

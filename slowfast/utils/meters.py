@@ -57,6 +57,7 @@ class AVAMeter:
         """
         self.cfg = cfg
         self.lr = None
+        self.grad_norm = None
         self.loss = ScalarMeter(cfg.LOG_PERIOD)
         self.full_ava_test = cfg.AVA.FULL_TEST_ON_VAL
         self.mode = mode
@@ -81,10 +82,10 @@ class AVAMeter:
         self.output_dir = cfg.OUTPUT_DIR
 
         self.min_top1_err = 100.0
-        self.min_top5_err = 100.0
+        self.min_top2_err = 100.0
         self.stats = {}
         self.stats["top1_acc"] = 100.0
-        self.stats["top5_acc"] = 100.0
+        self.stats["top2_acc"] = 100.0
 
     def log_iter_stats(self, cur_epoch, cur_iter):
         """
@@ -110,6 +111,7 @@ class AVAMeter:
                 "dt_net": self.net_timer.seconds(),
                 "mode": self.mode,
                 "loss": self.loss.get_win_median(),
+                "grad_norm": self.grad_norm,
                 "lr": self.lr,
             }
         elif self.mode == "val":
@@ -165,12 +167,12 @@ class AVAMeter:
         Reset the Meter.
         """
         self.loss.reset()
-
+        self.grad_norm = None
         self.all_preds = []
         self.all_ori_boxes = []
         self.all_metadata = []
 
-    def update_stats(self, preds, ori_boxes, metadata, loss=None, lr=None):
+    def update_stats(self, preds, ori_boxes, metadata, loss=None, lr=None, grad_norm=None):
         """
         Update the current stats.
         Args:
@@ -188,6 +190,8 @@ class AVAMeter:
             self.loss.add_value(loss)
         if lr is not None:
             self.lr = lr
+        if grad_norm is not None:
+            self.grad_norm = grad_norm    
 
     def finalize_metrics(self, log=True):
         """
@@ -202,7 +206,7 @@ class AVAMeter:
         else:
             groundtruth = self.mini_groundtruth
 
-        self.full_map, self.precision, self.recall, self.labels, self.preds = evaluate_ava(
+        self.full_map, self.precision, self.recall, self.accuracy, self.labels, self.preds = evaluate_ava(
             all_preds,
             all_ori_boxes,
             all_metadata.tolist(),
@@ -211,16 +215,21 @@ class AVAMeter:
             self.categories,
             groundtruth=groundtruth,
             video_idx_to_name=self.video_idx_to_name,
+            single_label=self.cfg.DATA.SINGLE_LABEL
         )
         if log:
-            stats = {"mode": self.mode, "map": self.full_map, "precision": self.precision, "recall": self.recall ,"loss": self.loss.get_global_avg()}
+            stats = {"mode": self.mode, "precision": self.precision, "recall": self.recall, "accuracy": self.accuracy ,"loss": self.loss.get_global_avg()}
+
+            if not self.cfg.DATA.SINGLE_LABEL:
+                stats["map"] = self.full_map
+
             logging.log_json_stats(stats, self.output_dir)
 
-        map_str = "{:.{prec}f}".format(self.full_map * 100.0, prec=2)
+        # map_str = "{:.{prec}f}".format(self.full_map * 100.0, prec=2)
 
-        self.min_top1_err = self.full_map
-        self.stats["top1_acc"] = map_str
-        self.stats["top5_acc"] = map_str
+        # self.min_top1_err = self.full_map
+        # self.stats["top1_acc"] = map_str
+        # self.stats["top5_acc"] = map_str
 
     def log_epoch_stats(self, cur_epoch):
         """
@@ -234,12 +243,15 @@ class AVAMeter:
                 "_type": "{}_epoch".format(self.mode),
                 "cur_epoch": "{}".format(cur_epoch + 1),
                 "mode": self.mode,
-                "map": self.full_map,
                 "precision": self.precision, 
                 "recall": self.recall,
+                "accuracy": self.accuracy,
                 "gpu_mem": "{:.2f}G".format(misc.gpu_mem_usage()),
                 "RAM": "{:.2f}/{:.2f}G".format(*misc.cpu_mem_usage()),
             }
+
+            if not self.cfg.DATA.SINGLE_LABEL:
+                stats["map"] = self.full_map
 
             if self.mode == "val":
                 stats["loss"] = self.loss.get_global_avg()

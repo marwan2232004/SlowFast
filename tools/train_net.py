@@ -186,18 +186,40 @@ def train_epoch(
             labels = top_max_k_inds[:, 0]
 
         if cfg.DETECTION.ENABLE:
-            if cfg.NUM_GPUS > 1:
-                loss = du.all_reduce([loss])[0]
-            loss = loss.item()
+            if cfg.DATA.SINGLE_LABEL:
+                # Gather all the predictions across all the devices.
+                if cfg.NUM_GPUS > 1:
+                    loss, grad_norm = du.all_reduce(
+                        [loss.detach(), grad_norm]
+                    )
 
-            # Update and log stats.
-            train_meter.update_stats(None, None, None, loss, lr)
-            # write to tensorboard format if available.
-            if writer is not None:
-                writer.add_scalars(
-                    {"Train/loss": loss},
-                    global_step=data_size * cur_epoch + cur_iter,
+                # Copy the stats from GPU to CPU (sync point).
+                loss, grad_norm = (
+                    loss.item(),
+                    grad_norm.item()
                 )
+
+                # Update and log stats.
+                train_meter.update_stats(None, None,  None, loss, lr, grad_norm)
+                # write to tensorboard format if available.
+                if writer is not None:
+                    writer.add_scalars(
+                        {"Train/loss": loss},
+                        global_step=data_size * cur_epoch + cur_iter,
+                    )
+            else:    
+                if cfg.NUM_GPUS > 1:
+                    loss = du.all_reduce([loss])[0]
+                loss = loss.item()
+
+                # Update and log stats.
+                train_meter.update_stats(None, None, None, loss, lr)
+                # write to tensorboard format if available.
+                if writer is not None:
+                    writer.add_scalars(
+                        {"Train/loss": loss},
+                        global_step=data_size * cur_epoch + cur_iter,
+                    )
 
         else:
             top1_err, top5_err = None, None
@@ -267,6 +289,7 @@ def train_epoch(
                     },
                     global_step=data_size * cur_epoch + cur_iter,
                 )
+        
         train_meter.iter_toc()  # do measure allreduce for this meter
         train_meter.log_iter_stats(cur_epoch, cur_iter)
         torch.cuda.synchronize()
@@ -421,14 +444,22 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
     # Log epoch stats.
     val_meter.log_epoch_stats(cur_epoch)
     map = val_meter.full_map
-
+    accuracy = 0
     # write to tensorboard format if available.
     if writer is not None:
         if cfg.DETECTION.ENABLE:
-            writer.add_scalars({"Val/loss": val_meter.loss.get_global_avg(),
-                                "Val/mAP": val_meter.full_map, 
-                                "Val/Precision": val_meter.precision, 
-                                "Val/Recall": val_meter.recall}, global_step=cur_epoch)
+            accuracy = val_meter.accuracy
+
+            info = {
+            "Val/loss": val_meter.loss.get_global_avg(),
+            "Val/Accuracy": val_meter.accuracy,
+            "Val/Precision": val_meter.precision, 
+            "Val/Recall": val_meter.recall
+            }
+            if not cfg.DATA.SINGLE_LABEL:
+                info["Val/mAP"] = val_meter.full_map
+
+            writer.add_scalars(info, global_step=cur_epoch)
             writer.plot_eval(preds=val_meter.preds, labels=val_meter.labels, global_step=cur_epoch)
         else:
             all_preds = [pred.clone().detach() for pred in val_meter.all_preds]
@@ -439,7 +470,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
             writer.plot_eval(preds=all_preds, labels=all_labels, global_step=cur_epoch)
 
     val_meter.reset()
-    return map
+    return map if not cfg.DATA.SINGLE_LABEL else accuracy
 
 
 def calculate_and_update_precise_bn(loader, model, num_iters=200, use_gpu=True):
@@ -599,7 +630,7 @@ def train(cfg):
 
             for name, param in model.named_parameters():
                 if (
-                    "s5.pathway1_res1" in name or
+                    "s5.pathway0_res2" in name or
                     "s5.pathway1_res2" in name
                 ):
                     param.requires_grad = True
@@ -654,7 +685,7 @@ def train(cfg):
     best_optimizer = copy.deepcopy(optimizer)
     best_scaler = copy.deepcopy(scaler)
     best_epochs = cfg.SOLVER.MAX_EPOCH
-    best_val_map = 0
+    best_val_metric = 0
 
     # Perform the training loop.
     logger.info("Start epoch: {}".format(start_epoch + 1))
@@ -771,7 +802,7 @@ def train(cfg):
             )
         # Evaluate the model on validation set.
         if is_eval_epoch:
-            map = eval_epoch(
+            metric = eval_epoch(
                 val_loader,
                 model,
                 val_meter,
@@ -779,7 +810,7 @@ def train(cfg):
                 cfg,
                 writer,
             )
-            if map > best_val_map:
+            if metric > best_val_metric:
                 if model is best_model:
                     logger.info(
                         "Current model is identical to the best saved model — keeping the same reference."
@@ -793,7 +824,7 @@ def train(cfg):
                 best_optimizer = copy.deepcopy(optimizer)
                 best_scaler = copy.deepcopy(scaler)
                 best_epochs = cur_epoch
-                best_val_map = map
+                best_val_metric = metric
             else:
                 patience += 1
 
@@ -821,7 +852,7 @@ def train(cfg):
 
 
     logger.info(
-        f"Best number of training epochs: {best_epochs+1}, Best mAP: {best_val_map}"
+        f"Best number of training epochs: {best_epochs+1}, Best {"Accuracy" if cfg.DATA.SINGLE_LABEL else "mAP"}: {best_val_metric}"
     )
 
     if writer is not None:

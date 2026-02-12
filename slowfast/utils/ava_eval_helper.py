@@ -32,7 +32,7 @@ import time
 from collections import defaultdict
 
 import numpy as np
-from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import precision_score, recall_score, accuracy_score
 import slowfast.utils.distributed as du
 from slowfast.utils.env import pathmgr
 from collections import Counter
@@ -132,10 +132,9 @@ def evaluate_ava_from_files(labelmap, groundtruth, detections, exclusions):
     run_evaluation(categories, groundtruth, detections, excluded_keys)
 
 
-def compute_classification_precision_recall(groundtruth, detections):
+def compute_classification_metrics(groundtruth, detections):
     """
-    Compute classification precision & recall.
-    Matches boxes by rounding coordinates to 3 decimal places to avoid NaN/mismatches.
+    Compute classification precision, recall, and accuracy.
     """
     gt_boxes, gt_labels, _ = groundtruth
     pred_boxes, pred_labels, pred_scores = detections
@@ -143,10 +142,9 @@ def compute_classification_precision_recall(groundtruth, detections):
     y_true = []
     y_pred = []
 
-    # Helper: Convert box to a tuple of strings with 3 decimal places
-    # This matches the %.03f formatting used in your write_results function
-    def box_to_key(box):
-        return tuple("{:.3f}".format(float(c)) for c in box)
+    def box_to_composite_key(video_key, box):
+        coords = tuple("{:.3f}".format(float(c)) for c in box)
+        return (video_key, coords)
 
     for key in gt_boxes:
         if key not in pred_boxes:
@@ -158,32 +156,26 @@ def compute_classification_precision_recall(groundtruth, detections):
         p_labels_list = pred_labels[key]
         p_scores_list = pred_scores[key]
 
-        # Create the lookup map using the 3-decimal string keys
-        pred_map = {
-            box_to_key(box): label
-            for box, label, score in zip(
-                p_boxes_list, p_labels_list, p_scores_list
-            )
-            if score >= 0.7
-        }
+        best_pred_map = {}
+        for box, label, score in zip(p_boxes_list, p_labels_list, p_scores_list):
+            comp_key = box_to_composite_key(key, box)
+            
+            if comp_key not in best_pred_map or score > best_pred_map[comp_key][1]:
+                best_pred_map[comp_key] = (label, score)
 
         for gt_box, gt_label in zip(g_boxes_list, g_labels_list):
-            gt_box_key = box_to_key(gt_box)
+            gt_comp_key = box_to_composite_key(key, gt_box)
             
-            if gt_box_key in pred_map:
+            if gt_comp_key in best_pred_map:
+                label_winner, _ = best_pred_map[gt_comp_key]
                 y_true.append(gt_label)
-                y_pred.append(pred_map[gt_box_key])
+                y_pred.append(label_winner)
 
-    # If y_true is empty, no boxes matched, which causes the NaN result.
-    if not y_true:
-        print("Warning: No matching boxes found. Check if GT and Pred use the same coordinate system.")
-        return 0.0, 0.0
-
-    # Compute metrics
     precision = precision_score(y_true, y_pred, average="binary", zero_division=0)
     recall = recall_score(y_true, y_pred, average="binary", zero_division=0)
+    accuracy = accuracy_score(y_true, y_pred)
 
-    return precision, recall, y_true, y_pred
+    return precision, recall, accuracy, y_true, y_pred
 
 def evaluate_ava(
     preds,
@@ -195,6 +187,7 @@ def evaluate_ava(
     groundtruth=None,
     video_idx_to_name=None,
     name="latest",
+    single_label = False
 ):
     """Run AVA evaluation given numpy arrays."""
 
@@ -214,12 +207,15 @@ def evaluate_ava(
     write_results(detections, "detections_%s.csv" % name)
     write_results(groundtruth, "groundtruth_%s.csv" % name)
 
-    results = run_evaluation(categories, groundtruth, detections, excluded_keys)
-
-    cls_precision, cls_recall, y_true, y_pred = compute_classification_precision_recall(groundtruth, detections)
+    cls_precision, cls_recall, cls_accuracy, y_true, y_pred = compute_classification_metrics(groundtruth, detections)
+    map = None
+    
+    if not single_label:
+        results = run_evaluation(categories, groundtruth, detections, excluded_keys)
+        map = results["PascalBoxes_Precision/mAP@0.5IOU"]
 
     logger.info("AVA eval done in %f seconds." % (time.time() - eval_start))
-    return results["PascalBoxes_Precision/mAP@0.5IOU"],cls_precision, cls_recall, y_true, y_pred
+    return map, cls_precision, cls_recall, cls_accuracy, y_true, y_pred
     
 
 
