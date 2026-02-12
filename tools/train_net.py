@@ -852,7 +852,7 @@ def train(cfg):
 
 
     logger.info(
-        f"Best number of training epochs: {best_epochs+1}, Best {"Accuracy" if cfg.DATA.SINGLE_LABEL else "mAP"}: {best_val_metric}"
+        f"Best number of training epochs: {best_epochs+1}, Best {'Accuracy' if cfg.DATA.SINGLE_LABEL else 'mAP'}: {best_val_metric}"
     )
 
     if writer is not None:
