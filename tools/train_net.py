@@ -858,24 +858,24 @@ def train(cfg):
     if writer is not None:
         writer.close()
 
-    result_string = (
-        "_p{:.2f}_f{:.2f} _t{:.2f}_m{:.2f}  Top1 Acc:{:.2f}  Top5 Acc: {:.2f} MEM: {:.2f} f: {:.4f}"
-        "".format(
-            params / 1e6,
-            flops,
-            (
-                epoch_timer.median_epoch_time() / 60.0
-                if len(epoch_timer.epoch_times)
-                else 0.0
-            ),
-            misc.gpu_mem_usage(),
-            100 - val_meter.min_top1_err,
-            100 - val_meter.min_top5_err,
-            misc.gpu_mem_usage(),
-            flops,
-        )
-    )
+    # result_string = (
+    #     "_p{:.2f}_f{:.2f} _t{:.2f}_m{:.2f}  Top1 Acc:{:.2f}  Top5 Acc: {:.2f} MEM: {:.2f} f: {:.4f}"
+    #     "".format(
+    #         params / 1e6,
+    #         flops,
+    #         (
+    #             epoch_timer.median_epoch_time() / 60.0
+    #             if len(epoch_timer.epoch_times)
+    #             else 0.0
+    #         ),
+    #         misc.gpu_mem_usage(),
+    #         100 - val_meter.min_top1_err,
+    #         100 - val_meter.min_top5_err,
+    #         misc.gpu_mem_usage(),
+    #         flops,
+    #     )
+    # )
 
-    logger.info("training done: {}".format(result_string))
+    # logger.info("training done: {}".format(result_string))
 
-    return result_string
+    return "result_string"
