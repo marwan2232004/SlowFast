@@ -31,8 +31,8 @@ class FrameActionPredictor:
 
         if cfg.DETECTION.ENABLE:
             if cfg.DEMO.USE_YOLO:
-                logger.info("Using YoloX for object detection.")
-                self.object_detector = YoloPredictor(cfg, gpu_id=self.gpu_id)
+                logger.info("Using Yolo for object detection.")
+                self.object_detector = YoloPredictor(cfg)
             else:
                 logger.info("Using Detectron2 for object detection.")
                 self.object_detector = Detectron2Predictor(cfg, gpu_id=self.gpu_id)
