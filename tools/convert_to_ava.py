@@ -41,10 +41,10 @@ def parse_label_file(lbl_path, names, video_folder, frame_second):
                 [
                     video_folder,
                     frame_second,
-                    round(x1, 2),
-                    round(y1, 2),
-                    round(x2, 2),
-                    round(y2, 2),
+                    x1,
+                    y1,
+                    x2,
+                    y2,
                     action,
                     pid,
                 ]
