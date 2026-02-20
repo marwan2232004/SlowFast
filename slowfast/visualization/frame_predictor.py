@@ -132,7 +132,11 @@ class YoloPredictor:
 
     def get_boxes(self, frame):
         results = self.predictor.predict(
-            frame, device=self.device, conf=self.conf_thresh, iou=self.nms_thresh
+            frame,
+            device=self.device,
+            conf=self.conf_thresh,
+            iou=self.nms_thresh,
+            verbose=False,
         )
         if len(results) == 0 or results[0].boxes is None:
             return None
