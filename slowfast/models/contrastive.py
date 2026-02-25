@@ -57,7 +57,7 @@ class ContrastiveModel(nn.Module):
         self.num_crops = (
             self.cfg.DATA.TRAIN_CROP_NUM_TEMPORAL * self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL
         )
-        self.nce_loss_fun = losses.get_loss_func("contrastive_loss")(reduction="mean")
+        self.nce_loss_fun = losses.get_loss_func(cfg)
         assert self.cfg.MODEL.LOSS_FUNC == "contrastive_loss"
         self.softmax = nn.Softmax(dim=1).cuda()
 

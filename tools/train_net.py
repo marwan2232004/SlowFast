@@ -75,7 +75,7 @@ def train_epoch(
     if cfg.MODEL.FROZEN_BN:
         misc.frozen_bn_stats(model)
     # Explicitly declare reduction to mean.
-    loss_fun = losses.get_loss_func(cfg.MODEL.LOSS_FUNC, cfg.MODEL.CLASS_WEIGHTS)
+    loss_fun = losses.get_loss_func(cfg)
 
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(train_loader):
         # Transfer the data to the current GPU device.
@@ -322,7 +322,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
     # Evaluation mode enabled. The running stats would not be updated.
     model.eval()
     val_meter.iter_tic()
-    loss_fun = losses.get_loss_func(cfg.MODEL.LOSS_FUNC, cfg.MODEL.CLASS_WEIGHTS)
+    loss_fun = losses.get_loss_func(cfg)
 
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(val_loader):
         if cfg.NUM_GPUS:

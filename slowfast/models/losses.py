@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 
 from pytorchvideo.losses.soft_target_cross_entropy import SoftTargetCrossEntropyLoss
+from torchvision.ops.focal_loss import sigmoid_focal_loss
 
 
 class ContrastiveLoss(nn.Module):
@@ -59,6 +60,24 @@ class MultipleMSELoss(nn.Module):
         return loss_sum, multi_loss
 
 
+class SigmoidFocalLoss(nn.Module):
+    def __init__(self, alpha: float = 0.25, gamma: float = 2, reduction: str = "none"):
+        super().__init__()
+        self.alpha = 0.25 if alpha is None else alpha
+        self.gamma = 2 if gamma is None else gamma
+        self.reduction = "none" if reduction is None else reduction
+        self.focal_loss_func = sigmoid_focal_loss
+
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor):
+        return self.focal_loss_func(
+            inputs,
+            targets,
+            alpha=self.alpha,
+            gamma=self.gamma,
+            reduction=self.reduction,
+        )
+
+
 _LOSSES = {
     "cross_entropy": nn.CrossEntropyLoss,
     "bce": nn.BCELoss,
@@ -67,16 +86,20 @@ _LOSSES = {
     "contrastive_loss": ContrastiveLoss,
     "mse": nn.MSELoss,
     "multi_mse": MultipleMSELoss,
+    "focal_loss": SigmoidFocalLoss,
 }
 
 
-def get_loss_func(loss_name, class_weights=None, device="cuda"):
+def get_loss_func(cfg, device="cuda"):
     """
     Retrieve the loss given the loss name.
     Args:
         loss_name (str): name of the loss function.
         class_weights (torch.Tensor or None): optional tensor of class weights.
     """
+    loss_name = cfg.MODEL.LOSS_FUNC
+    class_weights = cfg.MODEL.CLASS_WEIGHTS
+
     if loss_name not in _LOSSES:
         raise NotImplementedError(f"Loss '{loss_name}' is not supported.")
 
@@ -94,5 +117,9 @@ def get_loss_func(loss_name, class_weights=None, device="cuda"):
             return loss_cls(pos_weight=class_weights)
         elif loss_name == "bce":
             return loss_cls(weight=class_weights)
-
+        
+    if loss_name == "focal_loss":
+        return loss_cls(
+            alpha=cfg.MODEL.ALPHA, gamma=cfg.MODEL.GAMMA, reduction=cfg.MODEL.REDUCTION
+        )
     return loss_cls()

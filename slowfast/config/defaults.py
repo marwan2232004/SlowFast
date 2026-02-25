@@ -403,6 +403,11 @@ _C.MODEL.NUM_CLASSES = 400
 # Loss function.
 _C.MODEL.LOSS_FUNC = "cross_entropy"
 
+# parameters for focal loss.
+_C.MODEL.ALPHA = 0.25
+_C.MODEL.GAMMA = 2
+_C.MODEL.REDUCTION = "none"
+
 # Model architectures that has one single pathway.
 _C.MODEL.SINGLE_PATHWAY_ARCH = [
     "2d",
