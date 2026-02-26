@@ -61,7 +61,7 @@ class MultipleMSELoss(nn.Module):
 
 
 class SigmoidFocalLoss(nn.Module):
-    def __init__(self, alpha: float = 0.25, gamma: float = 2, reduction: str = "none"):
+    def __init__(self, alpha: float = 0.25, gamma: float = 2, reduction: str = "mean"):
         super().__init__()
         self.alpha = 0.25 if alpha is None else alpha
         self.gamma = 2 if gamma is None else gamma
@@ -120,6 +120,6 @@ def get_loss_func(cfg, device="cuda"):
         
     if loss_name == "focal_loss":
         return loss_cls(
-            alpha=cfg.MODEL.ALPHA, gamma=cfg.MODEL.GAMMA, reduction=cfg.MODEL.REDUCTION
+            alpha=cfg.MODEL.ALPHA, gamma=cfg.MODEL.GAMMA
         )
     return loss_cls()
