@@ -34,6 +34,7 @@ class ResNetRoIHead(nn.Module):
         act_func="softmax",
         aligned=True,
         detach_final_fc=False,
+        remove_head_act = False,
     ):
         """
         The `__init__` method of any subclass should also contain these
@@ -60,6 +61,7 @@ class ResNetRoIHead(nn.Module):
             detach_final_fc (bool): if True, detach the final fc layer from the
                 gradient graph. By doing so, only the final fc layer will be
                 trained.
+            remove_head_act (bool): if True, don't apply the final activation function    
         Note:
             Given a continuous coordinate c, its two neighboring pixel indices
             (in our pixel model) are computed by floor (c - 0.5) and ceil
@@ -81,6 +83,7 @@ class ResNetRoIHead(nn.Module):
         ), "pathway dimensions are not consistent."
         self.num_pathways = len(pool_size)
         self.detach_final_fc = detach_final_fc
+        self.remove_head_act = remove_head_act
 
         for pathway in range(self.num_pathways):
             temporal_pool = nn.AvgPool3d([pool_size[pathway][0], 1, 1], stride=1)
@@ -141,7 +144,8 @@ class ResNetRoIHead(nn.Module):
         if self.detach_final_fc:
             x = x.detach()
         x = self.projection(x)
-        x = self.act(x)
+        if not self.remove_head_act:
+            x = self.act(x)
         return x
 
 

@@ -387,6 +387,7 @@ class SlowFast(nn.Module):
                 act_func=cfg.MODEL.HEAD_ACT,
                 aligned=cfg.DETECTION.ALIGNED,
                 detach_final_fc=cfg.MODEL.DETACH_FINAL_FC,
+                remove_head_act=(cfg.MODEL.LOSS_FUNC == "focal_loss")
             )
         else:
             self.head = head_helper.ResNetBasicHead(
