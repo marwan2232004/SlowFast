@@ -175,6 +175,8 @@ _C.TRAIN.CHECKPOINT_IN_INIT = False
 
 _C.TRAIN.FINE_TUNE = False
 
+_C.TRAIN.FULL_FINE_TUNE = False
+
 # ---------------------------------------------------------------------------- #
 # Augmentation options.
 # ---------------------------------------------------------------------------- #
