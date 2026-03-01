@@ -636,7 +636,7 @@ def train(cfg):
                     param.requires_grad = True
 
             if cfg.TRAIN.FULL_FINE_TUNE:
-                for param in model.parameters():
+                for name, param in model.named_parameters():
                     if name in ["s5", "s4", "s3"]:
                         param.requires_grad = True
 
