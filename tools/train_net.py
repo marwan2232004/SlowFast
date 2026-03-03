@@ -636,9 +636,8 @@ def train(cfg):
                     param.requires_grad = True
 
             if cfg.TRAIN.FULL_FINE_TUNE:
-                for name, param in model.named_parameters():
-                    if any(stage in name for stage in ["s5", "s4", "s3"]):
-                        param.requires_grad = True
+                for param in model.parameters():
+                    param.requires_grad = True
 
             logger.info("Model info after loading pretrained model")
             if du.is_master_proc():
