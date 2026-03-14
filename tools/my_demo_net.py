@@ -84,11 +84,14 @@ def my_demo(cfg):
     if not ret: return
     for _ in range(predictor.seq_length // 2 + 1): frame_buffer.append(first_frame)
 
-    total_work_hits, total_all_hits = 0, 0
     readings = []
     pbar = tqdm(total=total_frames, desc="Processing", colour="green", ncols=100)
 
     keep_reading = True
+
+    window_seconds = 30
+    frame_scores = deque(maxlen=int(fps * window_seconds))
+
     for i in range(total_frames):
         while len(frame_buffer) < predictor.seq_length and keep_reading:
             ret, frame = cap.read()
@@ -103,10 +106,12 @@ def my_demo(cfg):
         preds, boxes = predictor.predict_single_step(current_clip, vis_frame)
 
         f_work, f_total = draw_predictions(vis_frame, boxes, preds, id_to_label, unique_colors)
-        total_work_hits += f_work
-        total_all_hits += f_total
 
-        current_prod = (total_work_hits / total_all_hits * 100) if total_all_hits > 0 else 0.0
+        frame_prod = (f_work / f_total * 100) if f_total > 0 else 0.0
+        frame_scores.append(frame_prod)
+        
+        current_prod = sum(frame_scores) / len(frame_scores) if frame_scores else 0.0
+        
         draw_productivity_dashboard(vis_frame, current_prod)
 
         if i and i % max(1, int(round(fps))) == 0:
