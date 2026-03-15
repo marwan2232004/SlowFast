@@ -107,11 +107,6 @@ def my_demo(cfg):
     window_seconds = 30
     frame_scores = deque(maxlen=int(fps * window_seconds))
 
-    # --- TRACKING & SMOOTHING PARAMETERS ---
-    cfg.DEMO.PREDICT_STRIDE = 10  # Run SlowFast every 10 frames
-    cfg.DEMO.IOU_THRESH = 0.4     # Minimum overlap to consider it the "same person"
-    cfg.DEMO.EMA_ALPHA = 0.6      # 1.0 = no smoothing. Lower = more smoothing (less flicker)
-    
     # Stores dicts: {'box': [x,y,x,y], 'pred': tensor}
     active_tracks = []
     # ---------------------------------------------
@@ -143,7 +138,7 @@ def my_demo(cfg):
                 if iou > best_iou:
                     best_iou, best_t_idx = iou, t_idx
                     
-            if best_iou > IOU_THRESH:
+            if best_iou > cfg.DEMO.IOU_THRESH:
                 used_tracks.add(best_t_idx)
                 matched_tracks.append({
                     'box': box, 
@@ -159,7 +154,7 @@ def my_demo(cfg):
         display_preds = []
 
         # 3. IF KEYFRAME: Run SlowFast and apply Exponential Moving Average (EMA) to smooth flicker
-        if i % PREDICT_STRIDE == 0 and len(current_boxes) > 0:
+        if i % cfg.DEMO.PREDICT_STRIDE == 0 and len(current_boxes) > 0:
             # We pass precomputed_boxes so we don't run YOLO a second time
             raw_preds, _ = predictor.predict_single_step(current_clip, vis_frame, precomputed_boxes=current_boxes_tensor)
             
@@ -170,7 +165,7 @@ def my_demo(cfg):
                 
                 # Apply EMA Smoothing: Blends the old historical prediction with the new one
                 if torch.sum(old_pred) > 0: # If we have history for this person
-                    smoothed_pred = (1.0 - EMA_ALPHA) * old_pred + EMA_ALPHA * new_pred
+                    smoothed_pred = (1.0 - cfg.DEMO.EMA_ALPHA ) * old_pred + cfg.DEMO.EMA_ALPHA  * new_pred
                 else:
                     smoothed_pred = new_pred
                     
