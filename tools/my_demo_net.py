@@ -67,6 +67,22 @@ def draw_productivity_dashboard(frame, productivity):
     cv2.putText(frame, score_text, (10, 35), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
 
+
+def calculate_iou(boxA, boxB):
+    """Calculates Intersection over Union for two bounding boxes."""
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+    if interArea == 0: return 0.0
+
+    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+    return interArea / float(boxAArea + boxBArea - interArea)
+
+
 def my_demo(cfg):
     logging.setup_logging(cfg.OUTPUT_DIR)
     id_to_label, unique_colors = load_label_map(cfg.DEMO.LABEL_FILE_PATH)
@@ -88,9 +104,17 @@ def my_demo(cfg):
     pbar = tqdm(total=total_frames, desc="Processing", colour="green", ncols=100)
 
     keep_reading = True
-
     window_seconds = 30
     frame_scores = deque(maxlen=int(fps * window_seconds))
+
+    # --- TRACKING & SMOOTHING PARAMETERS ---
+    cfg.DEMO.PREDICT_STRIDE = 10  # Run SlowFast every 10 frames
+    cfg.DEMO.IOU_THRESH = 0.4     # Minimum overlap to consider it the "same person"
+    cfg.DEMO.EMA_ALPHA = 0.6      # 1.0 = no smoothing. Lower = more smoothing (less flicker)
+    
+    # Stores dicts: {'box': [x,y,x,y], 'pred': tensor}
+    active_tracks = []
+    # ---------------------------------------------
 
     for i in range(total_frames):
         while len(frame_buffer) < predictor.seq_length and keep_reading:
@@ -103,13 +127,71 @@ def my_demo(cfg):
 
         current_clip = list(frame_buffer)
         vis_frame = current_clip[len(current_clip) // 2].copy()
-        preds, boxes = predictor.predict_single_step(current_clip, vis_frame)
+        
+        # 1. ALWAYS run the Object Detector (it's fast and keeps boxes accurate)
+        current_boxes_tensor = predictor.object_detector.get_boxes(vis_frame)
+        current_boxes = current_boxes_tensor.cpu().numpy() if current_boxes_tensor is not None else []
+        
+        # 2. Match current detections to our previous tracks via IoU
+        matched_tracks = []
+        used_tracks = set()
+        for b_idx, box in enumerate(current_boxes):
+            best_iou, best_t_idx = 0, -1
+            for t_idx, track in enumerate(active_tracks):
+                if t_idx in used_tracks: continue
+                iou = calculate_iou(box, track['box'])
+                if iou > best_iou:
+                    best_iou, best_t_idx = iou, t_idx
+                    
+            if best_iou > IOU_THRESH:
+                used_tracks.add(best_t_idx)
+                matched_tracks.append({
+                    'box': box, 
+                    'box_tensor': current_boxes_tensor[b_idx],
+                    'pred': active_tracks[best_t_idx]['pred'] # Inherit previous prediction
+                })
+            else:
+                # New person detected! Give them a zeroed prediction tensor until the next keyframe
+                dummy_pred = torch.zeros(len(id_to_label)) 
+                matched_tracks.append({'box': box, 'box_tensor': current_boxes_tensor[b_idx], 'pred': dummy_pred})
 
-        f_work, f_total = draw_predictions(vis_frame, boxes, preds, id_to_label, unique_colors)
+        display_boxes = []
+        display_preds = []
+
+        # 3. IF KEYFRAME: Run SlowFast and apply Exponential Moving Average (EMA) to smooth flicker
+        if i % PREDICT_STRIDE == 0 and len(current_boxes) > 0:
+            # We pass precomputed_boxes so we don't run YOLO a second time
+            raw_preds, _ = predictor.predict_single_step(current_clip, vis_frame, precomputed_boxes=current_boxes_tensor)
+            
+            new_active_tracks = []
+            for r_idx, track in enumerate(matched_tracks):
+                old_pred = track['pred']
+                new_pred = raw_preds[r_idx]
+                
+                # Apply EMA Smoothing: Blends the old historical prediction with the new one
+                if torch.sum(old_pred) > 0: # If we have history for this person
+                    smoothed_pred = (1.0 - EMA_ALPHA) * old_pred + EMA_ALPHA * new_pred
+                else:
+                    smoothed_pred = new_pred
+                    
+                new_active_tracks.append({'box': track['box'], 'pred': smoothed_pred})
+                display_boxes.append(track['box_tensor'])
+                display_preds.append(smoothed_pred)
+                
+            active_tracks = new_active_tracks
+
+        # 4. IF NOT KEYFRAME: Just use the tracked predictions
+        else:
+            active_tracks = matched_tracks
+            for track in active_tracks:
+                display_boxes.append(track['box_tensor'] if 'box_tensor' in track else torch.tensor(track['box']))
+                display_preds.append(track['pred'])
+
+        # Draw
+        f_work, f_total = draw_predictions(vis_frame, display_boxes, display_preds, id_to_label, unique_colors)
 
         frame_prod = (f_work / f_total * 100) if f_total > 0 else 0.0
         frame_scores.append(frame_prod)
-        
         current_prod = sum(frame_scores) / len(frame_scores) if frame_scores else 0.0
         
         draw_productivity_dashboard(vis_frame, current_prod)
@@ -124,6 +206,7 @@ def my_demo(cfg):
     cap.release()
     out.release()
     pbar.close()
+
     logger.info(f"Total Utilization: {current_prod:.2f}%")
 
     video_name  = os.path.splitext(cfg.DEMO.INPUT_VIDEO)[0]

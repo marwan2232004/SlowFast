@@ -1291,6 +1291,10 @@ _C.DEMO.COMMON_CLASS_NAMES = [
 # video will be played `_C.DEMO.SLOWMO` times slower than usual speed.
 _C.DEMO.SLOWMO = 1
 
+_C.DEMO.PREDICT_STRIDE = 10  # Run SlowFast every 10 frames
+_C.DEMO.IOU_THRESH = 0.4     # Minimum overlap to consider it the "same person"
+_C.DEMO.EMA_ALPHA = 0.6      # 1.0 = no smoothing. Lower = more smoothing (less flicker)
+
 # Add custom config with default values.
 custom_config.add_custom_config(_C)
 

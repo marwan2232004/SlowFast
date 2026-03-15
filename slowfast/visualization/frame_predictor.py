@@ -47,11 +47,14 @@ class FrameActionPredictor:
         self.img_height = img_height
         self.img_width = img_width
 
-    def predict_single_step(self, clip, center_frame):
+    def predict_single_step(self, clip, center_frame, precomputed_boxes=None):
         """
         Performs detection + action prediction for a single streaming step.
         """
-        boxes = self.object_detector.get_boxes(center_frame)
+        if precomputed_boxes is not None:
+            boxes = precomputed_boxes
+        else:
+            boxes = self.object_detector.get_boxes(center_frame)
 
         if boxes is None or len(boxes) == 0:
             return [], []
