@@ -104,12 +104,12 @@ def my_demo(cfg):
     pbar = tqdm(total=total_frames, desc="Processing", colour="green", ncols=100)
 
     keep_reading = True
-    window_seconds = 30
-    frame_scores = deque(maxlen=int(fps * window_seconds))
+    total_work_boxes = 0
+    total_detected_boxes = 0
+    # -------------------------------------------------------------------------
 
     # Stores dicts: {'box': [x,y,x,y], 'pred': tensor}
     active_tracks = []
-    # ---------------------------------------------
 
     for i in range(total_frames):
         while len(frame_buffer) < predictor.seq_length and keep_reading:
@@ -123,7 +123,7 @@ def my_demo(cfg):
         current_clip = list(frame_buffer)
         vis_frame = current_clip[len(current_clip) // 2].copy()
         
-        # 1. ALWAYS run the Object Detector (it's fast and keeps boxes accurate)
+        # 1. ALWAYS run the Object Detector
         current_boxes_tensor = predictor.object_detector.get_boxes(vis_frame)
         current_boxes = current_boxes_tensor.cpu().numpy() if current_boxes_tensor is not None else []
         
@@ -143,19 +143,17 @@ def my_demo(cfg):
                 matched_tracks.append({
                     'box': box, 
                     'box_tensor': current_boxes_tensor[b_idx],
-                    'pred': active_tracks[best_t_idx]['pred'] # Inherit previous prediction
+                    'pred': active_tracks[best_t_idx]['pred']
                 })
             else:
-                # New person detected! Give them a zeroed prediction tensor until the next keyframe
                 dummy_pred = torch.zeros(len(id_to_label)) 
                 matched_tracks.append({'box': box, 'box_tensor': current_boxes_tensor[b_idx], 'pred': dummy_pred})
 
         display_boxes = []
         display_preds = []
 
-        # 3. IF KEYFRAME: Run SlowFast and apply Exponential Moving Average (EMA) to smooth flicker
+        # 3. IF KEYFRAME: Run SlowFast and apply EMA
         if i % cfg.DEMO.PREDICT_STRIDE == 0 and len(current_boxes) > 0:
-            # We pass precomputed_boxes so we don't run YOLO a second time
             raw_preds, _ = predictor.predict_single_step(current_clip, vis_frame, precomputed_boxes=current_boxes_tensor)
             
             new_active_tracks = []
@@ -163,8 +161,7 @@ def my_demo(cfg):
                 old_pred = track['pred']
                 new_pred = raw_preds[r_idx]
                 
-                # Apply EMA Smoothing: Blends the old historical prediction with the new one
-                if torch.sum(old_pred) > 0: # If we have history for this person
+                if torch.sum(old_pred) > 0: 
                     smoothed_pred = (1.0 - cfg.DEMO.EMA_ALPHA ) * old_pred + cfg.DEMO.EMA_ALPHA  * new_pred
                 else:
                     smoothed_pred = new_pred
@@ -182,12 +179,14 @@ def my_demo(cfg):
                 display_boxes.append(track['box_tensor'] if 'box_tensor' in track else torch.tensor(track['box']))
                 display_preds.append(track['pred'])
 
-        # Draw
+        # Draw and extract counts
         f_work, f_total = draw_predictions(vis_frame, display_boxes, display_preds, id_to_label, unique_colors)
 
-        frame_prod = (f_work / f_total * 100) if f_total > 0 else 0.0
-        frame_scores.append(frame_prod)
-        current_prod = sum(frame_scores) / len(frame_scores) if frame_scores else 0.0
+        total_work_boxes += f_work
+        total_detected_boxes += f_total
+        
+        current_prod = (total_work_boxes / total_detected_boxes * 100) if total_detected_boxes > 0 else 0.0
+        # -------------------------------------------------------------------
         
         draw_productivity_dashboard(vis_frame, current_prod)
 
