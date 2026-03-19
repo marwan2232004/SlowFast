@@ -2,8 +2,9 @@ import cv2
 import os
 import json
 import torch
+import numpy as np
 from tqdm.auto import tqdm
-from collections import deque
+from collections import deque, Counter
 from slowfast.utils import logging
 from slowfast.visualization.frame_predictor import FrameActionPredictor
 
@@ -16,6 +17,10 @@ FIXED_COLORS = [
     (100, 100, 255), # light red/blueish
     (255, 255, 0)    # yellow
 ]
+
+# --- HYPERPARAMETERS FOR STABILITY ---
+VOTING_WINDOW = 15  # How many frames of history to look at for the stable label
+# -------------------------------------
 
 def load_label_map(label_path):
     """Loads the label map and creates color mapping."""
@@ -36,8 +41,15 @@ def draw_predictions(frame, boxes, preds, id_to_label, unique_colors):
 
     for box, pred in zip(boxes, preds):
         x1, y1, x2, y2 = map(int, box)
+        
+        # Pred here is the 'Stable' tensor from the voting logic
         label_id = torch.argmax(pred).item()
         conf = torch.max(pred).item()
+        
+        # If the track is brand new and has no predictions yet, conf might be 0
+        if conf <= 0:
+            continue
+
         label_text = id_to_label.get(label_id, "Unknown")
         color = unique_colors.get(label_id, (0, 255, 100))
 
@@ -46,12 +58,14 @@ def draw_predictions(frame, boxes, preds, id_to_label, unique_colors):
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1, cv2.LINE_AA)
 
+        # Label Text
         text = f"{label_text}"
         (text_w, text_h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
         text_x, text_y = max(x1, 0), max(y1 - 8, text_h + 4)
         cv2.rectangle(frame, (text_x, text_y - text_h - 4), (text_x + text_w + 4, text_y), color, -1)
         cv2.putText(frame, text, (text_x + 2, text_y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 1, cv2.LINE_AA)
 
+        # Confidence Text
         conf_text = f"{conf:.2f}"
         (conf_w, conf_h), _ = cv2.getTextSize(conf_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
         conf_x, conf_y = min(x2 - conf_w - 3, width - conf_w - 3), min(y2 - 3, height - 3)
@@ -67,7 +81,6 @@ def draw_productivity_dashboard(frame, productivity):
     cv2.putText(frame, score_text, (10, 35), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
 
-
 def calculate_iou(boxA, boxB):
     """Calculates Intersection over Union for two bounding boxes."""
     xA = max(boxA[0], boxB[0])
@@ -81,7 +94,6 @@ def calculate_iou(boxA, boxB):
     boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
     boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
     return interArea / float(boxAArea + boxBArea - interArea)
-
 
 def my_demo(cfg):
     logging.setup_logging(cfg.OUTPUT_DIR)
@@ -98,7 +110,8 @@ def my_demo(cfg):
     frame_buffer = deque(maxlen=predictor.seq_length)
     ret, first_frame = cap.read()
     if not ret: return
-    for _ in range(predictor.seq_length // 2 + 1): frame_buffer.append(first_frame)
+    for _ in range(predictor.seq_length // 2 + 1): 
+        frame_buffer.append(first_frame)
 
     readings = []
     pbar = tqdm(total=total_frames, desc="Processing", colour="green", ncols=100)
@@ -106,9 +119,8 @@ def my_demo(cfg):
     keep_reading = True
     total_work_boxes = 0
     total_detected_boxes = 0
-    # -------------------------------------------------------------------------
-
-    # Stores dicts: {'box': [x,y,x,y], 'pred': tensor}
+    
+    # active_tracks stores: {'box': [], 'pred': tensor, 'history': deque}
     active_tracks = []
 
     for i in range(total_frames):
@@ -123,11 +135,11 @@ def my_demo(cfg):
         current_clip = list(frame_buffer)
         vis_frame = current_clip[len(current_clip) // 2].copy()
         
-        # 1. ALWAYS run the Object Detector
+        # 1. Run Detector
         current_boxes_tensor = predictor.object_detector.get_boxes(vis_frame)
         current_boxes = current_boxes_tensor.cpu().numpy() if current_boxes_tensor is not None else []
         
-        # 2. Match current detections to our previous tracks via IoU
+        # 2. Match current detections to previous tracks via IoU
         matched_tracks = []
         used_tracks = set()
         for b_idx, box in enumerate(current_boxes):
@@ -143,16 +155,22 @@ def my_demo(cfg):
                 matched_tracks.append({
                     'box': box, 
                     'box_tensor': current_boxes_tensor[b_idx],
-                    'pred': active_tracks[best_t_idx]['pred']
+                    'pred': active_tracks[best_t_idx]['pred'],
+                    'history': active_tracks[best_t_idx]['history']
                 })
             else:
-                dummy_pred = torch.zeros(len(id_to_label)) 
-                matched_tracks.append({'box': box, 'box_tensor': current_boxes_tensor[b_idx], 'pred': dummy_pred})
+                # NEW TRACK: Initialize history
+                matched_tracks.append({
+                    'box': box, 
+                    'box_tensor': current_boxes_tensor[b_idx], 
+                    'pred': torch.zeros(len(id_to_label)),
+                    'history': deque(maxlen=VOTING_WINDOW)
+                })
 
         display_boxes = []
         display_preds = []
 
-        # 3. IF KEYFRAME: Run SlowFast and apply EMA
+        # 3. IF KEYFRAME: Run SlowFast, apply EMA, and update Voting History
         if i % cfg.DEMO.PREDICT_STRIDE == 0 and len(current_boxes) > 0:
             raw_preds, _ = predictor.predict_single_step(current_clip, vis_frame, precomputed_boxes=current_boxes_tensor)
             
@@ -161,23 +179,46 @@ def my_demo(cfg):
                 old_pred = track['pred']
                 new_pred = raw_preds[r_idx]
                 
+                # EMA Smoothing
                 if torch.sum(old_pred) > 0: 
-                    smoothed_pred = (1.0 - cfg.DEMO.EMA_ALPHA ) * old_pred + cfg.DEMO.EMA_ALPHA  * new_pred
+                    smoothed_pred = (1.0 - cfg.DEMO.EMA_ALPHA) * old_pred + cfg.DEMO.EMA_ALPHA * new_pred
                 else:
                     smoothed_pred = new_pred
-                    
-                new_active_tracks.append({'box': track['box'], 'pred': smoothed_pred})
+                
+                # Add current frame winner to voting history
+                current_winner = torch.argmax(smoothed_pred).item()
+                track['history'].append(current_winner)
+                
+                # Determine Stable Label via Majority Vote
+                most_common_class = Counter(track['history']).most_common(1)[0][0]
+                
+                # Create the display tensor (Stable class + Smooth confidence)
+                stable_display_pred = torch.zeros_like(smoothed_pred)
+                stable_display_pred[most_common_class] = torch.max(smoothed_pred)
+
+                new_active_tracks.append({
+                    'box': track['box'], 
+                    'pred': smoothed_pred, 
+                    'history': track['history']
+                })
                 display_boxes.append(track['box_tensor'])
-                display_preds.append(smoothed_pred)
+                display_preds.append(stable_display_pred)
                 
             active_tracks = new_active_tracks
 
-        # 4. IF NOT KEYFRAME: Just use the tracked predictions
+        # 4. IF NOT KEYFRAME: Use history mode for stability
         else:
             active_tracks = matched_tracks
             for track in active_tracks:
+                if len(track['history']) > 0:
+                    most_common_class = Counter(track['history']).most_common(1)[0][0]
+                    stable_display_pred = torch.zeros_like(track['pred'])
+                    stable_display_pred[most_common_class] = torch.max(track['pred'])
+                else:
+                    stable_display_pred = track['pred']
+
                 display_boxes.append(track['box_tensor'] if 'box_tensor' in track else torch.tensor(track['box']))
-                display_preds.append(track['pred'])
+                display_preds.append(stable_display_pred)
 
         # Draw and extract counts
         f_work, f_total = draw_predictions(vis_frame, display_boxes, display_preds, id_to_label, unique_colors)
@@ -186,11 +227,10 @@ def my_demo(cfg):
         total_detected_boxes += f_total
         
         current_prod = (total_work_boxes / total_detected_boxes * 100) if total_detected_boxes > 0 else 0.0
-        # -------------------------------------------------------------------
         
         draw_productivity_dashboard(vis_frame, current_prod)
 
-        if i and i % max(1, int(round(fps))) == 0:
+        if i > 0 and i % max(1, int(round(fps))) == 0:
             readings.append(current_prod)
 
         out.write(vis_frame)
@@ -203,10 +243,8 @@ def my_demo(cfg):
 
     logger.info(f"Total Utilization: {current_prod:.2f}%")
 
-    video_name  = os.path.splitext(cfg.DEMO.INPUT_VIDEO)[0]
-
+    video_name = os.path.splitext(cfg.DEMO.INPUT_VIDEO)[0]
     with open(f"{video_name}_readings.txt", "w") as f:
         for prod in readings:
             f.write(f"{prod}\n")
-            
-        f.write(f"Total Utilization: {current_prod}")    
+        f.write(f"Total Utilization: {current_prod}")
