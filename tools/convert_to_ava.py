@@ -52,39 +52,57 @@ def parse_label_file(lbl_path, names, video_folder, frame_second):
     return rows
 
 
-def video_to_ava(video_path):
+def dataset_to_ava(dataset_path):
     """
-    Process a single video folder into AVA-like annotations.
+    Process a YOLO dataset into AVA-like annotations.
     """
     rows = []
-    video_folder = os.path.basename(video_path)
-    data_yaml = Path(video_path) / "data.yaml"
-    labels_folder = Path(video_path) / "train" / "labels"
 
-    print(data_yaml)
-    print(labels_folder)
+    dataset_path = Path(dataset_path)
+    data_yaml = dataset_path / "data.yaml"
+    labels_folder = dataset_path / "train" / "labels"
 
     if not (data_yaml.exists() and labels_folder.is_dir()):
-        print(f"⚠️  Skipping {video_folder}: no data.yaml or labels folder")
-        return None
+        raise FileNotFoundError(f"Could not find {data_yaml} or {labels_folder}")
 
     with open(data_yaml, "r") as f:
         ydata = yaml.safe_load(f)
 
     names = ydata["names"]
 
-    print(f"\n📂 Processing video folder: \033[1;34m{video_folder}\033[0m")
+    print(f"\n📂 Processing dataset: \033[1;34m{dataset_path}\033[0m")
 
-    for lbl_file in tqdm(sorted(labels_folder.glob("*.txt")), desc=f"   → Labels"):
-        prefix = lbl_file.name.split("_jpg")[0]
+    for lbl_file in tqdm(sorted(labels_folder.glob("*.txt")), desc="   → Labels"):
+        stem = lbl_file.stem
+
+        # Example:
+        # video1_123_jpg.rf.abc123
+        # -> video_name=video1
+        # -> frame_second=123
+        parts = stem.split("_")
+
+        if len(parts) < 2:
+            print(f"⚠️ Skipping malformed filename: {lbl_file.name}")
+            continue
+
+        video_name = parts[0]
+
         try:
-            frame_second = int(prefix)
+            frame_second = int(parts[1])
         except ValueError:
-            frame_second = -1
+            print(f"⚠️ Invalid frame number in {lbl_file.name}")
+            continue
 
-        rows.extend(parse_label_file(lbl_file, names, video_folder, frame_second))
+        rows.extend(
+            parse_label_file(
+                lbl_file,
+                names,
+                video_name,
+                frame_second,
+            )
+        )
 
-    print(f"   ✅ Collected {len(rows)} annotations from {video_folder}")
+    print(f"   ✅ Collected {len(rows)} annotations")
     return rows
 
 
@@ -103,28 +121,22 @@ def save_pbtxt(actions_dict, pbtxt_path):
 
 def yolo_dataset_to_ava(dataset_root, output_dir):
     """
-    Convert YOLO dataset annotations (YOLOv11 format) to AVA-like CSV.
+    Convert YOLO dataset annotations (YOLO format) to AVA-like CSV.
     """
     dataset_root = Path(dataset_root)
-    data = []
 
-    print(f"🚀 Starting conversion from dataset root: \033[1;33m{dataset_root}\033[0m")
+    print(
+        f"🚀 Starting conversion from dataset root: " f"\033[1;33m{dataset_root}\033[0m"
+    )
 
-    for video_folder in dataset_root.iterdir():
-        if not video_folder.is_dir():
-            continue
-
-        rows = video_to_ava(video_folder)
-        if rows:
-            data.extend(rows)
+    data = dataset_to_ava(dataset_root)
 
     unique_actions = sorted({row[6] for row in data})
     actions_dict = {action: idx + 1 for idx, action in enumerate(unique_actions)}
 
     final_data = []
     for row in data:
-        row_with_id = row[:6] + [actions_dict[row[6]]] + [row[7]]
-        final_data.append(row_with_id)
+        final_data.append(row[:6] + [actions_dict[row[6]]] + [row[7]])
 
     output_csv = os.path.join(output_dir, "output.csv")
     output_pbtxt = os.path.join(output_dir, "action_list.pbtxt")
@@ -134,7 +146,8 @@ def yolo_dataset_to_ava(dataset_root, output_dir):
         writer.writerows(final_data)
 
     print(
-        f"\n✅ \033[1;32mCSV saved to {output_csv} with {len(final_data)} rows.\033[0m"
+        f"\n✅ \033[1;32mCSV saved to {output_csv} "
+        f"with {len(final_data)} rows.\033[0m"
     )
 
     save_pbtxt(actions_dict, output_pbtxt)
@@ -150,7 +163,7 @@ def main():
         "output_dir": {
             "help": "Path to output dir",
             "type": str,
-        }
+        },
     }
     parser = generate_parser(arg_metadata, DESCRIPTION)
     args = parser.parse_args()
@@ -160,6 +173,6 @@ def main():
 
 if __name__ == "__main__":
     """
-    python -m tools.convert_to_ava --dataset_dir "D:/Desktop/Action Recognition/data/videos/annotations" --output_dir "D:/Desktop/Action Recognition/data" 
+    python -m tools.convert_to_ava --dataset_dir "D:/Desktop/Action Recognition/data/videos/annotations" --output_dir "D:/Desktop/Action Recognition/data"
     """
     main()
