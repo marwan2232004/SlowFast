@@ -5,3 +5,5 @@ main.py
 extract_data.py
 metrics.csv
 test.txt
+
+__pycache__

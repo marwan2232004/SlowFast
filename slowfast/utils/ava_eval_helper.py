@@ -32,7 +32,7 @@ import time
 from collections import defaultdict
 
 import numpy as np
-from sklearn.metrics import precision_score, recall_score, accuracy_score
+from sklearn.metrics import precision_score, recall_score, accuracy_score, confusion_matrix
 import slowfast.utils.distributed as du
 from slowfast.utils.env import pathmgr
 from collections import Counter
@@ -134,7 +134,7 @@ def evaluate_ava_from_files(labelmap, groundtruth, detections, exclusions):
 
 def compute_classification_metrics(groundtruth, detections):
     """
-    Compute classification precision, recall, and accuracy.
+    Compute classification precision, recall, accuracy, and confusion matrix.
     """
     gt_boxes, gt_labels, _ = groundtruth
     pred_boxes, pred_labels, pred_scores = detections
@@ -171,11 +171,13 @@ def compute_classification_metrics(groundtruth, detections):
                 y_true.append(gt_label)
                 y_pred.append(label_winner)
 
-    precision = precision_score(y_true, y_pred, average="binary", zero_division=0)
-    recall = recall_score(y_true, y_pred, average="binary", zero_division=0)
+    precision = precision_score(y_true, y_pred, average="macro", zero_division=0)
+    recall = recall_score(y_true, y_pred, average="macro", zero_division=0)
     accuracy = accuracy_score(y_true, y_pred)
+    
+    cm = confusion_matrix(y_true, y_pred)
 
-    return precision, recall, accuracy, y_true, y_pred
+    return precision, recall, accuracy, y_true, y_pred, cm
 
 def evaluate_ava(
     preds,
@@ -184,10 +186,11 @@ def evaluate_ava(
     excluded_keys,
     class_whitelist,
     categories,
+    cur_epoch,
     groundtruth=None,
     video_idx_to_name=None,
     name="latest",
-    single_label = False
+    single_label=False
 ):
     """Run AVA evaluation given numpy arrays."""
 
@@ -204,10 +207,15 @@ def evaluate_ava(
     logger.info("Evaluating with %d unique GT frames." % len(groundtruth[0]))
     logger.info("Evaluating with %d unique detection frames" % len(detections[0]))
 
-    write_results(detections, "detections_%s.csv" % name)
-    write_results(groundtruth, "groundtruth_%s.csv" % name)
+    write_results(detections, "detections_%s.csv" % cur_epoch)
+    write_results(groundtruth, "groundtruth_%s.csv" % cur_epoch)
 
-    cls_precision, cls_recall, cls_accuracy, y_true, y_pred = compute_classification_metrics(groundtruth, detections)
+    cls_precision, cls_recall, cls_accuracy, y_true, y_pred, cm = compute_classification_metrics(groundtruth, detections)
+    
+    logger.info("Confusion Matrix:\n{}".format(cm))
+
+    np.savetxt("confusion_matrix_%s.csv" % cur_epoch, cm, delimiter=",", fmt='%d')
+
     map = None
     
     if not single_label:
@@ -215,7 +223,7 @@ def evaluate_ava(
         map = results["PascalBoxes_Precision/mAP@0.5IOU"]
 
     logger.info("AVA eval done in %f seconds." % (time.time() - eval_start))
-    return map, cls_precision, cls_recall, cls_accuracy, y_true, y_pred
+    return map, cls_precision, cls_recall, cls_accuracy, y_true, y_pred, cm
     
 
 

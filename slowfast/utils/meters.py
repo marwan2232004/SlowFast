@@ -193,7 +193,7 @@ class AVAMeter:
         if grad_norm is not None:
             self.grad_norm = grad_norm    
 
-    def finalize_metrics(self, log=True):
+    def finalize_metrics(self, cur_epoch, log=True):
         """
         Calculate and log the final AVA metrics.
         """
@@ -206,13 +206,14 @@ class AVAMeter:
         else:
             groundtruth = self.mini_groundtruth
 
-        self.full_map, self.precision, self.recall, self.accuracy, self.labels, self.preds = evaluate_ava(
+        self.full_map, self.precision, self.recall, self.accuracy, self.labels, self.preds, self.cm = evaluate_ava(
             all_preds,
             all_ori_boxes,
             all_metadata.tolist(),
             self.excluded_keys,
             self.class_whitelist,
             self.categories,
+            cur_epoch,
             groundtruth=groundtruth,
             video_idx_to_name=self.video_idx_to_name,
             single_label=self.cfg.DATA.SINGLE_LABEL
@@ -238,7 +239,7 @@ class AVAMeter:
             cur_epoch (int): the number of current epoch.
         """
         if self.mode in ["val", "test"]:
-            self.finalize_metrics(log=False)
+            self.finalize_metrics(cur_epoch, log=False)
             stats = {
                 "_type": "{}_epoch".format(self.mode),
                 "cur_epoch": "{}".format(cur_epoch + 1),
