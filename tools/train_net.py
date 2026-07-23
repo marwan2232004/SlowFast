@@ -444,12 +444,10 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
     # Log epoch stats.
     val_meter.log_epoch_stats(cur_epoch)
     map = val_meter.full_map
-    accuracy = 0
+    accuracy = val_meter.accuracy
     # write to tensorboard format if available.
     if writer is not None:
         if cfg.DETECTION.ENABLE:
-            accuracy = val_meter.accuracy
-
             info = {
             "Val/loss": val_meter.loss.get_global_avg(),
             "Val/Accuracy": val_meter.accuracy,
@@ -470,7 +468,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer):
             writer.plot_eval(preds=all_preds, labels=all_labels, global_step=cur_epoch)
 
     val_meter.reset()
-    return map if not cfg.DATA.SINGLE_LABEL else accuracy
+    return accuracy if cfg.DATA.SINGLE_LABEL else map
 
 
 def calculate_and_update_precise_bn(loader, model, num_iters=200, use_gpu=True):
@@ -854,32 +852,11 @@ def train(cfg):
         best=True
     )
 
-
     logger.info(
         f"Best number of training epochs: {best_epochs+1}, Best {'Accuracy' if cfg.DATA.SINGLE_LABEL else 'mAP'}: {best_val_metric}"
     )
 
     if writer is not None:
         writer.close()
-
-    # result_string = (
-    #     "_p{:.2f}_f{:.2f} _t{:.2f}_m{:.2f}  Top1 Acc:{:.2f}  Top5 Acc: {:.2f} MEM: {:.2f} f: {:.4f}"
-    #     "".format(
-    #         params / 1e6,
-    #         flops,
-    #         (
-    #             epoch_timer.median_epoch_time() / 60.0
-    #             if len(epoch_timer.epoch_times)
-    #             else 0.0
-    #         ),
-    #         misc.gpu_mem_usage(),
-    #         100 - val_meter.min_top1_err,
-    #         100 - val_meter.min_top5_err,
-    #         misc.gpu_mem_usage(),
-    #         flops,
-    #     )
-    # )
-
-    # logger.info("training done: {}".format(result_string))
 
     return "result_string"
