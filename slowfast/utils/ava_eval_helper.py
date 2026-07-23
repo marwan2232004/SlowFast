@@ -32,7 +32,7 @@ import time
 from collections import defaultdict
 
 import numpy as np
-from sklearn.metrics import precision_score, recall_score, accuracy_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, accuracy_score, classification_report, confusion_matrix
 import slowfast.utils.distributed as du
 from slowfast.utils.env import pathmgr
 from collections import Counter
@@ -134,13 +134,17 @@ def evaluate_ava_from_files(labelmap, groundtruth, detections, exclusions):
 
 def compute_classification_metrics(groundtruth, detections):
     """
-    Compute classification precision, recall, accuracy, and confusion matrix.
+    Compute classification precision, recall, accuracy, confusion matrix, 
+    and per-video label arrays.
     """
     gt_boxes, gt_labels, _ = groundtruth
     pred_boxes, pred_labels, pred_scores = detections
 
     y_true = []
     y_pred = []
+    
+    y_true_per_vid = defaultdict(list)
+    y_pred_per_vid = defaultdict(list)
 
     def box_to_composite_key(video_key, box):
         coords = tuple("{:.3f}".format(float(c)) for c in box)
@@ -149,6 +153,8 @@ def compute_classification_metrics(groundtruth, detections):
     for key in gt_boxes:
         if key not in pred_boxes:
             continue
+            
+        video_id = key.split(",")[0]
 
         g_boxes_list = gt_boxes[key]
         g_labels_list = gt_labels[key]
@@ -168,8 +174,12 @@ def compute_classification_metrics(groundtruth, detections):
             
             if gt_comp_key in best_pred_map:
                 label_winner, _ = best_pred_map[gt_comp_key]
+
                 y_true.append(gt_label)
                 y_pred.append(label_winner)
+                
+                y_true_per_vid[video_id].append(gt_label)
+                y_pred_per_vid[video_id].append(label_winner)
 
     precision = precision_score(y_true, y_pred, average="macro", zero_division=0)
     recall = recall_score(y_true, y_pred, average="macro", zero_division=0)
@@ -177,7 +187,7 @@ def compute_classification_metrics(groundtruth, detections):
     
     cm = confusion_matrix(y_true, y_pred)
 
-    return precision, recall, accuracy, y_true, y_pred, cm
+    return precision, recall, accuracy, y_true, y_pred, cm, y_true_per_vid, y_pred_per_vid
 
 def evaluate_ava(
     preds,
@@ -210,11 +220,34 @@ def evaluate_ava(
     write_results(detections, "detections_%s.csv" % cur_epoch)
     write_results(groundtruth, "groundtruth_%s.csv" % cur_epoch)
 
-    cls_precision, cls_recall, cls_accuracy, y_true, y_pred, cm = compute_classification_metrics(groundtruth, detections)
+    cls_precision, cls_recall, cls_accuracy, y_true, y_pred, cm, y_true_per_vid, y_pred_per_vid = compute_classification_metrics(groundtruth, detections)
     
-    logger.info("Confusion Matrix:\n{}".format(cm))
+    target_names = [cat["name"] for cat in categories] if categories else None
+    labels = [cat["id"] for cat in categories] if categories else None
+    
+    report = classification_report(y_true, y_pred, labels=labels, target_names=target_names, digits=4, zero_division=0)
+    logger.info("Overall Classification Report for epoch {}:\n{}".format(cur_epoch, report))
 
-    np.savetxt("confusion_matrix_%s.csv" % cur_epoch, cm, delimiter=",", fmt='%d')
+    with open("classification_report_global_%s.txt" % cur_epoch, "w") as f:
+        f.write("=== GLOBAL REPORT ===\n" + report)
+
+    # Per-Video Reports
+    per_video_text_output = ""
+    for vid_id in y_true_per_vid.keys():
+        v_true = y_true_per_vid[vid_id]
+        v_pred = y_pred_per_vid[vid_id]
+        
+        # Generate report for this specific video
+        v_report = classification_report(v_true, v_pred, labels=labels, target_names=target_names, digits=4, zero_division=0)
+        
+        per_video_text_output += f"========================================\n"
+        per_video_text_output += f"CLASSIFICATION REPORT FOR VIDEO: {vid_id}\n"
+        per_video_text_output += f"========================================\n"
+        per_video_text_output += v_report + "\n\n"
+
+    # Save all per-video reports into a single organized text file
+    with open("classification_report_per_video_%s.txt" % cur_epoch, "w") as f:
+        f.write(per_video_text_output)
 
     map = None
     
@@ -223,6 +256,7 @@ def evaluate_ava(
         map = results["PascalBoxes_Precision/mAP@0.5IOU"]
 
     logger.info("AVA eval done in %f seconds." % (time.time() - eval_start))
+    
     return map, cls_precision, cls_recall, cls_accuracy, y_true, y_pred, cm
     
 
