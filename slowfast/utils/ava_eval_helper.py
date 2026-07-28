@@ -40,6 +40,8 @@ from ava_evaluation import (
     object_detection_evaluation,
     standard_fields,
 )
+import torch.nn.functional as F
+
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +207,7 @@ def evaluate_ava(
     """Run AVA evaluation given numpy arrays."""
 
     eval_start = time.time()
-
+    preds = F.softmax(preds, dim=1)
     detections = get_ava_eval_data(
         preds,
         original_boxes,

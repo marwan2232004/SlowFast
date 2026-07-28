@@ -213,7 +213,7 @@ class SlowFast(nn.Module):
         assert len({len(pool_size), self.num_pathways}) == 1
         assert cfg.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
 
-        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
+        d2, d3, d4, d5 = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
 
         num_groups = cfg.RESNET.NUM_GROUPS
         width_per_group = cfg.RESNET.WIDTH_PER_GROUP
@@ -387,7 +387,15 @@ class SlowFast(nn.Module):
                 act_func=cfg.MODEL.HEAD_ACT,
                 aligned=cfg.DETECTION.ALIGNED,
                 detach_final_fc=cfg.MODEL.DETACH_FINAL_FC,
-                remove_head_act=(cfg.MODEL.LOSS_FUNC == "focal_loss")
+                remove_head_act=(
+                    cfg.MODEL.LOSS_FUNC
+                    in [
+                        "focal_loss",
+                        "cross_entropy",
+                        "bce_logit",
+                        "soft_cross_entropy",
+                    ]
+                ),
             )
         else:
             self.head = head_helper.ResNetBasicHead(
@@ -492,7 +500,7 @@ class ResNet(nn.Module):
         assert cfg.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
         self.cfg = cfg
 
-        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
+        d2, d3, d4, d5 = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
 
         num_groups = cfg.RESNET.NUM_GROUPS
         width_per_group = cfg.RESNET.WIDTH_PER_GROUP
@@ -727,7 +735,7 @@ class X3D(nn.Module):
         assert cfg.MODEL.ARCH in _POOL1.keys()
         assert cfg.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
 
-        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
+        d2, d3, d4, d5 = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
 
         num_groups = cfg.RESNET.NUM_GROUPS
         width_per_group = cfg.RESNET.WIDTH_PER_GROUP
