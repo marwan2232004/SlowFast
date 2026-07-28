@@ -77,6 +77,9 @@ def train_epoch(
     # Explicitly declare reduction to mean.
     loss_fun = losses.get_loss_func(cfg)
 
+    epoch_correct = 0
+    epoch_total = 0
+
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(train_loader):
         # Transfer the data to the current GPU device.
         if cfg.NUM_GPUS:
@@ -138,6 +141,20 @@ def train_epoch(
                 labels = torch.zeros(
                     preds.size(0), dtype=labels.dtype, device=labels.device
                 )
+
+            with torch.no_grad():
+                # Apply softmax to predictions first
+                preds_probs = torch.nn.functional.softmax(preds, dim=-1)
+                pred_classes = torch.argmax(preds_probs, dim=-1)
+                
+                # Check if labels are one-hot encoded or class indices
+                if labels.ndim > 1 and labels.size(-1) > 1:
+                    true_classes = torch.argmax(labels, dim=-1)
+                else:
+                    true_classes = labels
+                    
+                epoch_correct += (pred_classes == true_classes).sum().item()
+                epoch_total += true_classes.size(0)
 
             if cfg.MODEL.MODEL_NAME == "ContrastiveModel" and partial_loss:
                 loss = partial_loss
@@ -301,6 +318,21 @@ def train_epoch(
 
     # Log epoch stats.
     train_meter.log_epoch_stats(cur_epoch)
+
+    try:
+        # Extract the global average loss for the entire epoch
+        epoch_loss = train_meter.loss.get_global_avg()
+        epoch_acc = (epoch_correct / epoch_total) * 100.0 if epoch_total > 0 else 0.0
+        log_str = (
+            f"[End of Epoch {cur_epoch} Summary] "
+            f"Loss: {epoch_loss:.4f} | "
+            f"Accuracy (Softmax): {epoch_acc:.2f}%"
+        )
+        logger.info(log_str)
+            
+    except AttributeError as e:
+        logger.warning(f"Could not retrieve custom epoch summaries from train_meter: {e}")
+
     train_meter.reset()
 
 
