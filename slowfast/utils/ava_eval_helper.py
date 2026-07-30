@@ -29,10 +29,10 @@ import csv
 import logging
 import pprint
 import time
+import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report, precision_score, recall_score, accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from collections import defaultdict
-
-import numpy as np
-from sklearn.metrics import precision_score, recall_score, accuracy_score, classification_report, confusion_matrix
+import torch.nn.functional as F
 import slowfast.utils.distributed as du
 from slowfast.utils.env import pathmgr
 from collections import Counter
@@ -232,6 +232,21 @@ def evaluate_ava(
 
     with open("classification_report_global_%s.txt" % cur_epoch, "w") as f:
         f.write("=== GLOBAL REPORT ===\n" + report)
+
+    fig, ax = plt.subplots(figsize=(14, 12)) # Adjust size if needed
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=target_names)
+    
+    # Plotting it. Using 'd' for integer format and rotating x-labels for better readability
+    disp.plot(cmap=plt.cm.Blues, ax=ax, values_format='d')
+    plt.xticks(rotation=45, ha="right", fontsize=8) 
+    plt.yticks(fontsize=8)
+    plt.title(f"Confusion Matrix - Epoch {cur_epoch}")
+    plt.tight_layout()
+    
+    cm_filename = f"confusion_matrix_{cur_epoch}.png"
+    plt.savefig(cm_filename, dpi=300, bbox_inches='tight')
+    plt.close(fig) # Close the figure to free up memory
+    logger.info("Saved confusion matrix image to %s" % cm_filename)
 
     # Per-Video Reports
     per_video_text_output = ""
